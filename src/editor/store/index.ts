@@ -64,6 +64,7 @@ export const useShowRunner = () => useStore(s => s.showRunner);
 export const useShowRecordBar = () => useStore(s => s.showRecordBar);
 export const useRecording = () => useStore(s => s.recording);
 export const useCommandPaletteOpen = () => useStore(s => s.commandPaletteOpen);
+export const useDarkMode = () => useStore(s => s.darkMode);
 
 // ─── Actions (stable references — never cause re-renders) ───────────────────
 

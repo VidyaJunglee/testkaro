@@ -20,6 +20,27 @@
   --color-warning: #f59e0b;
 }
 
+/* Dark mode overrides */
+.dark {
+  --color-bg-primary: #0f1117;
+  --color-bg-secondary: #161922;
+  --color-bg-tertiary: #1c2030;
+  --color-bg-card: #1a1e2b;
+  --color-bg-hover: #242838;
+  --color-bg-input: #1e2231;
+  --color-border: #2a2f3e;
+  --color-border-subtle: #222636;
+  --color-border-active: #3b82f6;
+  --color-text-primary: #e8ecf4;
+  --color-text-secondary: #a0aec0;
+  --color-text-tertiary: #5f6b7a;
+  --color-accent: #60a5fa;
+  --color-accent-hover: #3b82f6;
+  --color-success: #34d399;
+  --color-danger: #f87171;
+  --color-warning: #fbbf24;
+}
+
 /* Base */
 body {
   @apply bg-bg-primary text-text-primary antialiased;
@@ -39,8 +60,8 @@ body {
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-
-/* Resize handles are now custom — no library selectors needed */
+.dark ::-webkit-scrollbar-thumb { background: #3a3f50; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #4a5060; }
 
 /* Monaco overrides */
 .monaco-editor .suggest-widget { z-index: 1000 !important; }

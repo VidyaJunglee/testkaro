@@ -13,11 +13,11 @@ import {
   useFile, useFileId, useActiveTestIndex, useSavedFiles, useDirty,
   useActiveTest, useSteps,
   useHighlightedStepId, useBreakpoints,
-  useTab, useShowRunner, useShowRecordBar, useRecording, useCommandPaletteOpen,
+  useTab, useShowRunner, useShowRecordBar, useRecording, useCommandPaletteOpen, useDarkMode,
 } from './store';
 import {
   Circle, FileText, Plus, Trash2, Command, Code2, Layers,
-  PanelRightOpen, PanelRightClose, Undo2, Redo2,
+  PanelRightOpen, PanelRightClose, Undo2, Redo2, Moon, Sun,
 } from 'lucide-react';
 
 export function App() {
@@ -34,10 +34,18 @@ export function App() {
   const commandPaletteOpen = useCommandPaletteOpen();
   const highlightedStepId = useHighlightedStepId();
   const breakpoints = useBreakpoints();
+  const darkMode = useDarkMode();
 
   // Actions (stable references)
   const store = useStore;
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Apply dark class on mount
+  useEffect(() => {
+    if (store.getState().darkMode) {
+      document.documentElement.classList.add('dark');
+    }
+  }, []);
 
   // Panel widths (custom resize)
   const [sidebarWidth, setSidebarWidth] = useState(220);
@@ -156,7 +164,7 @@ export function App() {
             <div className="w-5 h-5 bg-gradient-to-br from-accent to-blue-700 rounded flex items-center justify-center">
               <Layers size={11} className="text-white" />
             </div>
-            <span className="text-sm font-bold text-text-primary tracking-tight">TestFlow</span>
+            <span className="text-sm font-bold text-text-primary tracking-tight">TestKaro</span>
           </div>
 
           {/* File name */}
@@ -213,6 +221,15 @@ export function App() {
           </button>
 
           <div className="w-px h-5 bg-border mx-1" />
+
+          {/* Dark mode toggle */}
+          <button
+            className="p-1.5 rounded text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-all"
+            onClick={() => store.getState().toggleDarkMode()}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? <Sun size={14} /> : <Moon size={14} />}
+          </button>
 
           <button
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded text-xs text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-all"
