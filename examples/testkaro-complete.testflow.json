@@ -1,0 +1,147 @@
+{
+  "version": "3.0.0",
+  "name": "TestKaro Complete Coverage",
+  "description": "Comprehensive test suite covering ALL 28 block types against real public test sites",
+  "baseUrl": "https://the-internet.herokuapp.com",
+  "tests": [
+    {
+      "id": "test-login-full",
+      "name": "Login Flow - All Interactions",
+      "tags": ["navigation", "interaction", "assertion", "data"],
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com/login" } },
+        { "id": "s2", "type": "assert_title", "params": { "expected": "The Internet" } },
+        { "id": "s3", "type": "screenshot", "params": { "name": "login-page" } },
+        { "id": "s4", "type": "wait_for_element", "params": { "selector": "#username", "timeout": 5000 } },
+        { "id": "s5", "type": "fill", "params": { "selector": "#username", "value": "tomsmith" } },
+        { "id": "s6", "type": "fill", "params": { "selector": "#password", "value": "SuperSecretPassword!" } },
+        { "id": "s7", "type": "get_input_value", "params": { "selector": "#username", "saveAs": "enteredUser" } },
+        { "id": "s8", "type": "assert_value", "params": { "selector": "#username", "expected": "tomsmith" } },
+        { "id": "s9", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "s10", "type": "wait", "params": { "ms": 1000 } },
+        { "id": "s11", "type": "assert_url", "params": { "expected": "/secure", "mode": "contains" } },
+        { "id": "s12", "type": "assert_visible", "params": { "selector": ".flash.success" } },
+        { "id": "s13", "type": "assert_text", "params": { "selector": ".flash.success", "expected": "You logged into a secure area!", "exact": false } },
+        { "id": "s14", "type": "get_text", "params": { "selector": "h2", "saveAs": "pageHeading" } },
+        { "id": "s15", "type": "get_url", "params": { "saveAs": "currentUrl" } },
+        { "id": "s16", "type": "log", "params": { "message": "Login successful! User: ${enteredUser}, Page: ${pageHeading}" } },
+        { "id": "s17", "type": "screenshot", "params": { "name": "login-success" } },
+        { "id": "s18", "type": "click", "params": { "selector": "a[href='/logout']" } },
+        { "id": "s19", "type": "assert_url", "params": { "expected": "/login", "mode": "contains" } }
+      ]
+    },
+    {
+      "id": "test-form-controls",
+      "name": "Form Controls - Type, Select, Check, Keys",
+      "tags": ["interaction", "data"],
+      "steps": [
+        { "id": "f1", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com/dropdown" } },
+        { "id": "f2", "type": "select", "params": { "selector": "#dropdown", "value": "2" } },
+        { "id": "f3", "type": "get_attribute", "params": { "selector": "#dropdown option:checked", "attribute": "value", "saveAs": "selectedValue" } },
+        { "id": "f4", "type": "log", "params": { "message": "Selected dropdown value: ${selectedValue}" } },
+        { "id": "f5", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com/checkboxes" } },
+        { "id": "f6", "type": "check", "params": { "selector": "input[type='checkbox']:first-of-type", "checked": true } },
+        { "id": "f7", "type": "assert_visible", "params": { "selector": "input[type='checkbox']" } },
+        { "id": "f8", "type": "assert_count", "params": { "selector": "input[type='checkbox']", "count": 2 } },
+        { "id": "f9", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com/key_presses" } },
+        { "id": "f10", "type": "click", "params": { "selector": "#target" } },
+        { "id": "f11", "type": "type", "params": { "selector": "#target", "text": "Hello TestKaro" } },
+        { "id": "f12", "type": "press_key", "params": { "key": "Enter", "selector": "#target" } },
+        { "id": "f13", "type": "assert_text", "params": { "selector": "#result", "expected": "ENTER", "exact": false } },
+        { "id": "f14", "type": "screenshot", "params": { "name": "key-press-result" } }
+      ]
+    },
+    {
+      "id": "test-hover-actions",
+      "name": "Hover & Dynamic Content",
+      "tags": ["interaction", "assertion"],
+      "steps": [
+        { "id": "h1", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com/hovers" } },
+        { "id": "h2", "type": "hover", "params": { "selector": ".figure:nth-child(3)" } },
+        { "id": "h3", "type": "wait", "params": { "ms": 500 } },
+        { "id": "h4", "type": "assert_visible", "params": { "selector": ".figure:nth-child(3) .figcaption" } },
+        { "id": "h5", "type": "get_text", "params": { "selector": ".figure:nth-child(3) .figcaption h5", "saveAs": "hoverName" } },
+        { "id": "h6", "type": "log", "params": { "message": "Hovered user: ${hoverName}" } },
+        { "id": "h7", "type": "screenshot", "params": { "name": "hover-revealed" } }
+      ]
+    },
+    {
+      "id": "test-api-crud",
+      "name": "API CRUD - JSONPlaceholder",
+      "tags": ["api"],
+      "steps": [
+        { "id": "a1", "type": "set_variable", "params": { "name": "apiBase", "value": "https://jsonplaceholder.typicode.com" } },
+        { "id": "a2", "type": "log", "params": { "message": "Starting API CRUD tests against ${apiBase}" } },
+        { "id": "a3", "type": "api_get", "params": { "url": "https://jsonplaceholder.typicode.com/posts/1", "headers": "{}", "saveAs": "getResponse" } },
+        { "id": "a4", "type": "api_assert_status", "params": { "variable": "getResponse", "expected": 200 } },
+        { "id": "a5", "type": "api_post", "params": { "url": "https://jsonplaceholder.typicode.com/posts", "body": "{\"title\": \"TestKaro Post\", \"body\": \"Automated by TestKaro\", \"userId\": 1}", "headers": "{\"Content-Type\": \"application/json\"}", "saveAs": "postResponse" } },
+        { "id": "a6", "type": "api_assert_status", "params": { "variable": "postResponse", "expected": 201 } },
+        { "id": "a7", "type": "api_put", "params": { "url": "https://jsonplaceholder.typicode.com/posts/1", "body": "{\"title\": \"Updated by TestKaro\", \"body\": \"Modified content\", \"userId\": 1}", "headers": "{\"Content-Type\": \"application/json\"}", "saveAs": "putResponse" } },
+        { "id": "a8", "type": "api_assert_status", "params": { "variable": "putResponse", "expected": 200 } },
+        { "id": "a9", "type": "api_delete", "params": { "url": "https://jsonplaceholder.typicode.com/posts/1", "headers": "{}", "saveAs": "deleteResponse" } },
+        { "id": "a10", "type": "api_assert_status", "params": { "variable": "deleteResponse", "expected": 200 } },
+        { "id": "a11", "type": "log", "params": { "message": "API CRUD cycle complete - all assertions passed" } }
+      ]
+    },
+    {
+      "id": "test-logic-flow",
+      "name": "Logic - Variables, Conditions & Loops",
+      "tags": ["logic", "data"],
+      "steps": [
+        { "id": "l1", "type": "set_variable", "params": { "name": "environment", "value": "staging" } },
+        { "id": "l2", "type": "set_variable", "params": { "name": "retryCount", "value": "3" } },
+        { "id": "l3", "type": "log", "params": { "message": "Environment: ${environment}, Retries: ${retryCount}" } },
+        { "id": "l4", "type": "if", "params": { "variable": "environment", "operator": "equals", "value": "staging" }, "children": [
+          { "id": "l4a", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com" } },
+          { "id": "l4b", "type": "log", "params": { "message": "Running in staging mode - navigated to test site" } }
+        ]},
+        { "id": "l5", "type": "if", "params": { "variable": "environment", "operator": "notEquals", "value": "production" }, "children": [
+          { "id": "l5a", "type": "log", "params": { "message": "Safe to run destructive tests (not production)" } }
+        ]},
+        { "id": "l6", "type": "repeat", "params": { "times": 3 }, "children": [
+          { "id": "l6a", "type": "navigate", "params": { "url": "https://the-internet.herokuapp.com/status_codes" } },
+          { "id": "l6b", "type": "assert_visible", "params": { "selector": "a[href='status_codes/200']" } },
+          { "id": "l6c", "type": "log", "params": { "message": "Repeat iteration completed successfully" } }
+        ]},
+        { "id": "l7", "type": "get_url", "params": { "saveAs": "finalUrl" } },
+        { "id": "l8", "type": "if", "params": { "variable": "finalUrl", "operator": "contains", "value": "status_codes" }, "children": [
+          { "id": "l8a", "type": "log", "params": { "message": "Confirmed: ended on status_codes page at ${finalUrl}" } }
+        ]},
+        { "id": "l9", "type": "screenshot", "params": { "name": "logic-flow-complete" } }
+      ]
+    },
+    {
+      "id": "test-e2e-shopping",
+      "name": "E2E - SauceDemo Add to Cart & Checkout",
+      "tags": ["e2e", "navigation", "interaction", "assertion"],
+      "steps": [
+        { "id": "e1", "type": "navigate", "params": { "url": "https://www.saucedemo.com" } },
+        { "id": "e2", "type": "assert_title", "params": { "expected": "Swag Labs" } },
+        { "id": "e3", "type": "fill", "params": { "selector": "#user-name", "value": "standard_user" } },
+        { "id": "e4", "type": "fill", "params": { "selector": "#password", "value": "secret_sauce" } },
+        { "id": "e5", "type": "click", "params": { "selector": "#login-button" } },
+        { "id": "e6", "type": "wait_for_element", "params": { "selector": ".inventory_list", "timeout": 5000 } },
+        { "id": "e7", "type": "assert_url", "params": { "expected": "/inventory.html", "mode": "contains" } },
+        { "id": "e8", "type": "get_text", "params": { "selector": ".inventory_item:first-child .inventory_item_name", "saveAs": "productName" } },
+        { "id": "e9", "type": "log", "params": { "message": "Adding product: ${productName}" } },
+        { "id": "e10", "type": "click", "params": { "selector": ".inventory_item:first-child button" } },
+        { "id": "e11", "type": "assert_text", "params": { "selector": ".shopping_cart_badge", "expected": "1", "exact": true } },
+        { "id": "e12", "type": "click", "params": { "selector": ".shopping_cart_link" } },
+        { "id": "e13", "type": "assert_url", "params": { "expected": "/cart.html", "mode": "contains" } },
+        { "id": "e14", "type": "assert_visible", "params": { "selector": ".cart_item" } },
+        { "id": "e15", "type": "assert_count", "params": { "selector": ".cart_item", "count": 1 } },
+        { "id": "e16", "type": "click", "params": { "selector": "#checkout" } },
+        { "id": "e17", "type": "fill", "params": { "selector": "#first-name", "value": "Test" } },
+        { "id": "e18", "type": "fill", "params": { "selector": "#last-name", "value": "Karo" } },
+        { "id": "e19", "type": "fill", "params": { "selector": "#postal-code", "value": "12345" } },
+        { "id": "e20", "type": "click", "params": { "selector": "#continue" } },
+        { "id": "e21", "type": "assert_visible", "params": { "selector": ".summary_info" } },
+        { "id": "e22", "type": "click", "params": { "selector": "#finish" } },
+        { "id": "e23", "type": "assert_text", "params": { "selector": ".complete-header", "expected": "Thank you for your order", "exact": false } },
+        { "id": "e24", "type": "screenshot", "params": { "name": "checkout-complete" } },
+        { "id": "e25", "type": "get_url", "params": { "saveAs": "checkoutUrl" } },
+        { "id": "e26", "type": "log", "params": { "message": "E2E checkout complete at ${checkoutUrl}" } }
+      ]
+    }
+  ]
+}

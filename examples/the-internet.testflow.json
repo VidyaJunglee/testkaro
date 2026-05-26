@@ -1,0 +1,85 @@
+{
+  "version": "1.0",
+  "name": "The Internet - Heroku App Tests",
+  "baseUrl": "https://the-internet.herokuapp.com",
+  "tests": [
+    {
+      "id": "test-login-valid",
+      "name": "Login with valid credentials",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/login" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#username", "value": "tomsmith" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "SuperSecretPassword!" } },
+        { "id": "s4", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "s5", "type": "assert_url", "params": { "expected": "/secure", "mode": "contains" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": ".flash.success", "expected": "You logged into a secure area!", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-login-invalid",
+      "name": "Login with invalid credentials shows error",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/login" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#username", "value": "wronguser" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "wrongpass" } },
+        { "id": "s4", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "s5", "type": "assert_visible", "params": { "selector": ".flash.error" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": ".flash.error", "expected": "Your username is invalid!", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-dropdown",
+      "name": "Select dropdown options",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/dropdown" } },
+        { "id": "s2", "type": "select", "params": { "selector": "#dropdown", "value": "1" } },
+        { "id": "s3", "type": "assert_value", "params": { "selector": "#dropdown", "expected": "1" } },
+        { "id": "s4", "type": "select", "params": { "selector": "#dropdown", "value": "2" } },
+        { "id": "s5", "type": "assert_value", "params": { "selector": "#dropdown", "expected": "2" } }
+      ]
+    },
+    {
+      "id": "test-dynamic-loading",
+      "name": "Wait for dynamically loaded element",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/dynamic_loading/1" } },
+        { "id": "s2", "type": "click", "params": { "selector": "#start button" } },
+        { "id": "s3", "type": "wait_for_element", "params": { "selector": "#finish h4", "timeout": 10000 } },
+        { "id": "s4", "type": "assert_text", "params": { "selector": "#finish h4", "expected": "Hello World!", "exact": true } }
+      ]
+    },
+    {
+      "id": "test-hover",
+      "name": "Hover to reveal hidden content",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/hovers" } },
+        { "id": "s2", "type": "hover", "params": { "selector": ".figure:nth-child(3)" } },
+        { "id": "s3", "type": "assert_visible", "params": { "selector": ".figure:nth-child(3) .figcaption" } },
+        { "id": "s4", "type": "assert_text", "params": { "selector": ".figure:nth-child(3) .figcaption h5", "expected": "name: user1", "exact": true } }
+      ]
+    },
+    {
+      "id": "test-key-presses",
+      "name": "Keyboard input detection",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/key_presses" } },
+        { "id": "s2", "type": "click", "params": { "selector": "#target" } },
+        { "id": "s3", "type": "press_key", "params": { "key": "Enter", "selector": "#target" } },
+        { "id": "s4", "type": "assert_text", "params": { "selector": "#result", "expected": "ENTER", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-add-remove-elements",
+      "name": "Add and remove elements dynamically",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/add_remove_elements/" } },
+        { "id": "s2", "type": "click", "params": { "selector": "button[onclick='addElement()']" } },
+        { "id": "s3", "type": "click", "params": { "selector": "button[onclick='addElement()']" } },
+        { "id": "s4", "type": "click", "params": { "selector": "button[onclick='addElement()']" } },
+        { "id": "s5", "type": "assert_count", "params": { "selector": ".added-manually", "count": 3 } },
+        { "id": "s6", "type": "click", "params": { "selector": ".added-manually" } },
+        { "id": "s7", "type": "assert_count", "params": { "selector": ".added-manually", "count": 2 } }
+      ]
+    }
+  ]
+}

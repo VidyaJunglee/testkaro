@@ -1,0 +1,74 @@
+{
+  "version": "1.0",
+  "name": "JSONPlaceholder API Tests",
+  "tests": [
+    {
+      "id": "test-get-users",
+      "name": "GET all users returns 200 with array",
+      "steps": [
+        { "id": "s1", "type": "api_get", "params": { "url": "https://jsonplaceholder.typicode.com/users", "headers": "{}", "saveAs": "users" } },
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "users", "expected": 200 } }
+      ]
+    },
+    {
+      "id": "test-get-single-post",
+      "name": "GET single post by ID",
+      "steps": [
+        { "id": "s1", "type": "api_get", "params": { "url": "https://jsonplaceholder.typicode.com/posts/1", "headers": "{}", "saveAs": "post" } },
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "post", "expected": 200 } }
+      ]
+    },
+    {
+      "id": "test-create-post",
+      "name": "POST creates a new resource",
+      "steps": [
+        { "id": "s1", "type": "api_post", "params": {
+          "url": "https://jsonplaceholder.typicode.com/posts",
+          "body": "{\"title\": \"Test Post\", \"body\": \"This is a test\", \"userId\": 1}",
+          "headers": "{\"Content-Type\": \"application/json\"}",
+          "saveAs": "created"
+        }},
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "created", "expected": 201 } }
+      ]
+    },
+    {
+      "id": "test-update-post",
+      "name": "PUT updates an existing resource",
+      "steps": [
+        { "id": "s1", "type": "api_put", "params": {
+          "url": "https://jsonplaceholder.typicode.com/posts/1",
+          "body": "{\"id\": 1, \"title\": \"Updated Title\", \"body\": \"Updated body\", \"userId\": 1}",
+          "headers": "{\"Content-Type\": \"application/json\"}",
+          "saveAs": "updated"
+        }},
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "updated", "expected": 200 } }
+      ]
+    },
+    {
+      "id": "test-delete-post",
+      "name": "DELETE removes a resource",
+      "steps": [
+        { "id": "s1", "type": "api_delete", "params": { "url": "https://jsonplaceholder.typicode.com/posts/1", "headers": "{}", "saveAs": "deleted" } },
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "deleted", "expected": 200 } }
+      ]
+    },
+    {
+      "id": "test-not-found",
+      "name": "GET non-existent resource returns 404",
+      "steps": [
+        { "id": "s1", "type": "api_get", "params": { "url": "https://jsonplaceholder.typicode.com/posts/99999", "headers": "{}", "saveAs": "missing" } },
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "missing", "expected": 404 } }
+      ]
+    },
+    {
+      "id": "test-chained-requests",
+      "name": "Chain requests - get user then their posts",
+      "steps": [
+        { "id": "s1", "type": "api_get", "params": { "url": "https://jsonplaceholder.typicode.com/users/1", "headers": "{}", "saveAs": "user" } },
+        { "id": "s2", "type": "api_assert_status", "params": { "variable": "user", "expected": 200 } },
+        { "id": "s3", "type": "api_get", "params": { "url": "https://jsonplaceholder.typicode.com/posts?userId=1", "headers": "{}", "saveAs": "userPosts" } },
+        { "id": "s4", "type": "api_assert_status", "params": { "variable": "userPosts", "expected": 200 } }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,43 @@
+{
+  "version": "1.0",
+  "name": "Automation Practice - Full E2E",
+  "baseUrl": "https://practicetestautomation.com",
+  "tests": [
+    {
+      "id": "test-practice-login-success",
+      "name": "Successful login on practice page",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/practice-test-login/" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#username", "value": "student" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "Password123" } },
+        { "id": "s4", "type": "click", "params": { "selector": "#submit" } },
+        { "id": "s5", "type": "assert_url", "params": { "expected": "practicetestautomation.com/logged-in-successfully", "mode": "contains" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": "h1", "expected": "Logged In Successfully", "exact": false } },
+        { "id": "s7", "type": "assert_visible", "params": { "selector": "a[href*='log-out']" } }
+      ]
+    },
+    {
+      "id": "test-practice-login-wrong-password",
+      "name": "Login with incorrect password",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/practice-test-login/" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#username", "value": "student" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "wrongpass" } },
+        { "id": "s4", "type": "click", "params": { "selector": "#submit" } },
+        { "id": "s5", "type": "assert_visible", "params": { "selector": "#error" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": "#error", "expected": "Your password is invalid!", "exact": true } }
+      ]
+    },
+    {
+      "id": "test-extract-and-verify",
+      "name": "Extract page data into variables",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/practice-test-login/" } },
+        { "id": "s2", "type": "get_text", "params": { "selector": "h2", "saveAs": "pageTitle" } },
+        { "id": "s3", "type": "log", "params": { "message": "Page title: ${pageTitle}" } },
+        { "id": "s4", "type": "get_url", "params": { "saveAs": "currentUrl" } },
+        { "id": "s5", "type": "log", "params": { "message": "Current URL: ${currentUrl}" } }
+      ]
+    }
+  ]
+}

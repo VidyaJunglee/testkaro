@@ -1,0 +1,81 @@
+{
+  "version": "1.0",
+  "name": "SauceDemo Login Tests",
+  "baseUrl": "https://www.saucedemo.com",
+  "variables": {
+    "validUser": "standard_user",
+    "validPass": "secret_sauce",
+    "lockedUser": "locked_out_user"
+  },
+  "tests": [
+    {
+      "id": "test-login-success",
+      "name": "Successful login with valid credentials",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#user-name", "value": "${validUser}" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "${validPass}" } },
+        { "id": "s4", "type": "click", "params": { "selector": "#login-button" } },
+        { "id": "s5", "type": "assert_url", "params": { "expected": "/inventory.html", "mode": "contains" } },
+        { "id": "s6", "type": "assert_visible", "params": { "selector": ".inventory_list" } },
+        { "id": "s7", "type": "assert_text", "params": { "selector": ".title", "expected": "Products", "exact": true } }
+      ]
+    },
+    {
+      "id": "test-login-locked",
+      "name": "Locked out user gets error message",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#user-name", "value": "${lockedUser}" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "${validPass}" } },
+        { "id": "s4", "type": "click", "params": { "selector": "#login-button" } },
+        { "id": "s5", "type": "assert_visible", "params": { "selector": "[data-test='error']" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": "[data-test='error']", "expected": "locked out", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-login-empty",
+      "name": "Empty credentials shows validation error",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/" } },
+        { "id": "s2", "type": "click", "params": { "selector": "#login-button" } },
+        { "id": "s3", "type": "assert_visible", "params": { "selector": "[data-test='error']" } },
+        { "id": "s4", "type": "assert_text", "params": { "selector": "[data-test='error']", "expected": "Username is required", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-add-to-cart",
+      "name": "Add item to cart and verify badge",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#user-name", "value": "${validUser}" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "${validPass}" } },
+        { "id": "s4", "type": "click", "params": { "selector": "#login-button" } },
+        { "id": "s5", "type": "click", "params": { "selector": "#add-to-cart-sauce-labs-backpack" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": ".shopping_cart_badge", "expected": "1", "exact": true } },
+        { "id": "s7", "type": "click", "params": { "selector": ".shopping_cart_link" } },
+        { "id": "s8", "type": "assert_text", "params": { "selector": ".inventory_item_name", "expected": "Sauce Labs Backpack", "exact": true } }
+      ]
+    },
+    {
+      "id": "test-checkout-flow",
+      "name": "Complete checkout flow end to end",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#user-name", "value": "${validUser}" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "${validPass}" } },
+        { "id": "s4", "type": "click", "params": { "selector": "#login-button" } },
+        { "id": "s5", "type": "click", "params": { "selector": "#add-to-cart-sauce-labs-backpack" } },
+        { "id": "s6", "type": "click", "params": { "selector": ".shopping_cart_link" } },
+        { "id": "s7", "type": "click", "params": { "selector": "#checkout" } },
+        { "id": "s8", "type": "fill", "params": { "selector": "#first-name", "value": "John" } },
+        { "id": "s9", "type": "fill", "params": { "selector": "#last-name", "value": "Doe" } },
+        { "id": "s10", "type": "fill", "params": { "selector": "#postal-code", "value": "12345" } },
+        { "id": "s11", "type": "click", "params": { "selector": "#continue" } },
+        { "id": "s12", "type": "assert_visible", "params": { "selector": ".summary_info" } },
+        { "id": "s13", "type": "click", "params": { "selector": "#finish" } },
+        { "id": "s14", "type": "assert_text", "params": { "selector": ".complete-header", "expected": "Thank you for your order", "exact": false } }
+      ]
+    }
+  ]
+}

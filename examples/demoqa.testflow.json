@@ -1,0 +1,54 @@
+{
+  "version": "1.0",
+  "name": "DemoQA Interactions",
+  "baseUrl": "https://demoqa.com",
+  "tests": [
+    {
+      "id": "test-text-box",
+      "name": "Fill and submit text box form",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/text-box" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#userName", "value": "Jane Smith" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#userEmail", "value": "jane@example.com" } },
+        { "id": "s4", "type": "fill", "params": { "selector": "#currentAddress", "value": "123 Main St, NYC" } },
+        { "id": "s5", "type": "fill", "params": { "selector": "#permanentAddress", "value": "456 Oak Ave, LA" } },
+        { "id": "s6", "type": "click", "params": { "selector": "#submit" } },
+        { "id": "s7", "type": "assert_visible", "params": { "selector": "#output" } },
+        { "id": "s8", "type": "assert_text", "params": { "selector": "#name", "expected": "Jane Smith", "exact": false } },
+        { "id": "s9", "type": "assert_text", "params": { "selector": "#email", "expected": "jane@example.com", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-checkbox",
+      "name": "Expand and select checkboxes",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/checkbox" } },
+        { "id": "s2", "type": "click", "params": { "selector": ".rct-option-expand-all" } },
+        { "id": "s3", "type": "wait", "params": { "ms": 500 } },
+        { "id": "s4", "type": "click", "params": { "selector": "label[for='tree-node-desktop']" } },
+        { "id": "s5", "type": "assert_visible", "params": { "selector": "#result" } },
+        { "id": "s6", "type": "assert_text", "params": { "selector": "#result", "expected": "desktop", "exact": false } }
+      ]
+    },
+    {
+      "id": "test-buttons",
+      "name": "Test different click types on buttons page",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/buttons" } },
+        { "id": "s2", "type": "click", "params": { "selector": "//button[text()='Click Me']" } },
+        { "id": "s3", "type": "assert_visible", "params": { "selector": "#dynamicClickMessage" } },
+        { "id": "s4", "type": "assert_text", "params": { "selector": "#dynamicClickMessage", "expected": "You have done a dynamic click", "exact": true } }
+      ]
+    },
+    {
+      "id": "test-links",
+      "name": "Verify API call links return correct status",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "/links" } },
+        { "id": "s2", "type": "assert_visible", "params": { "selector": "#created" } },
+        { "id": "s3", "type": "api_get", "params": { "url": "https://demoqa.com/created", "headers": "{}", "saveAs": "createdRes" } },
+        { "id": "s4", "type": "api_assert_status", "params": { "variable": "createdRes", "expected": 201 } }
+      ]
+    }
+  ]
+}
