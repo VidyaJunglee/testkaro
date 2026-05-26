@@ -35,7 +35,7 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) 
   showRecordBar: false,
   recording: false,
   commandPaletteOpen: false,
-  darkMode: localStorage.getItem('testkaro-dark') === 'true' || window.matchMedia('(prefers-color-scheme: dark)').matches,
+  darkMode: localStorage.getItem('testkaro-dark') !== 'false',
 
   setTab: (tab) => set({ tab }),
   setBottomTab: (bottomTab) => set({ bottomTab }),
