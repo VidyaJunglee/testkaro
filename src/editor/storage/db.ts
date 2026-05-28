@@ -1,6 +1,6 @@
 import { TestFile } from '../../schema';
 
-const DB_NAME = 'testflow';
+const DB_NAME = 'testkaro';
 const DB_VERSION = 2;
 const STORE_NAME = 'testfiles';
 const RUNS_STORE = 'runs';

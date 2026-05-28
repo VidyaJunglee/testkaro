@@ -6,9 +6,9 @@ import {
 import {
   arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
+import { Plus } from 'lucide-react';
 import { BLOCKS } from '../blocks';
 import { StepCard } from './StepCard';
-import { ActionPalette } from './ActionPalette';
 import {
   useStore,
   useSteps, useHighlightedStepId, useBreakpoints, useSelectedStepIds,
@@ -122,80 +122,96 @@ export function VisualBuilder() {
 
   return (
     <div className="flex flex-1 h-full overflow-hidden">
-      <ActionPalette blocks={BLOCKS} onAdd={addStep} />
-
       <div
-        className="flex-1 overflow-y-auto p-6 bg-bg-primary"
+        className="flex-1 overflow-y-auto p-8 bg-bg-primary"
         onClick={(e) => { if (e.target === e.currentTarget) store.getState().clearSelection(); }}
       >
         {steps.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-80 text-text-tertiary">
-            <div className="w-14 h-14 rounded-xl bg-bg-tertiary border border-dashed border-border flex items-center justify-center text-2xl mb-4">+</div>
-            <p className="text-base">No steps yet</p>
-            <p className="text-sm text-text-tertiary mt-1">Add actions from the palette on the left</p>
+            <div className="w-16 h-16 rounded-xl bg-bg-tertiary border border-dashed border-border flex items-center justify-center text-2xl mb-4">+</div>
+            <p className="text-base font-medium">No steps yet</p>
+            <p className="text-sm text-text-tertiary mt-2">Press <kbd className="px-1.5 py-0.5 rounded bg-bg-tertiary border border-border text-[11px]">Cmd+P</kbd> or click below to add actions</p>
+            <button
+              className="mt-5 flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
+              onClick={() => store.getState().setActionPickerOpen(true)}
+            >
+              <Plus size={15} />
+              Add First Step
+            </button>
           </div>
         ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragStart={e => store.getState().setDraggedId(String(e.active.id))}
-            onDragEnd={handleDragEnd}
-            onDragCancel={() => store.getState().setDraggedId(null)}
-          >
-            <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
-              <div className="flex flex-col gap-1.5 max-w-2xl">
-                {/* Multi-select toolbar */}
-                {selectedStepIds.size > 1 && (
-                  <div className="flex items-center gap-2 px-3 py-1.5 mb-1 rounded bg-accent/5 border border-accent/20 text-xs text-accent">
-                    <span className="font-medium">{selectedStepIds.size} steps selected</span>
-                    <span className="text-text-tertiary">|</span>
-                    <button
-                      className="hover:underline"
-                      onClick={() => {
-                        const s = store.getState();
-                        const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-                        s.updateSteps(currentSteps.filter(st => !s.selectedStepIds.has(st.id)));
-                        s.clearSelection();
-                      }}
-                    >
-                      Delete
-                    </button>
-                    <button
-                      className="hover:underline"
-                      onClick={() => store.getState().clearSelection()}
-                    >
-                      Deselect
-                    </button>
-                  </div>
-                )}
+          <div className="max-w-3xl">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={e => store.getState().setDraggedId(String(e.active.id))}
+              onDragEnd={handleDragEnd}
+              onDragCancel={() => store.getState().setDraggedId(null)}
+            >
+              <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
+                <div className="flex flex-col gap-2.5">
+                  {/* Multi-select toolbar */}
+                  {selectedStepIds.size > 1 && (
+                    <div className="flex items-center gap-3 px-4 py-2 mb-1 rounded-lg bg-accent/5 border border-accent/20 text-sm text-accent">
+                      <span className="font-medium">{selectedStepIds.size} steps selected</span>
+                      <span className="text-text-tertiary">|</span>
+                      <button
+                        className="hover:underline"
+                        onClick={() => {
+                          const s = store.getState();
+                          const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
+                          s.updateSteps(currentSteps.filter(st => !s.selectedStepIds.has(st.id)));
+                          s.clearSelection();
+                        }}
+                      >
+                        Delete
+                      </button>
+                      <button
+                        className="hover:underline"
+                        onClick={() => store.getState().clearSelection()}
+                      >
+                        Deselect
+                      </button>
+                    </div>
+                  )}
 
-                {steps.map((step, index) => (
-                  <StepCard
-                    key={step.id}
-                    step={step}
-                    index={index}
-                    block={BLOCKS.find(b => b.type === step.type)}
-                    onUpdate={params => updateStep(step.id, params)}
-                    onRemove={() => removeStep(step.id)}
-                    onDuplicate={() => duplicateStep(step.id)}
-                    highlighted={step.id === highlightedStepId}
-                    selected={selectedStepIds.has(step.id)}
-                    onSelect={(e) => handleSelect(step.id, e)}
-                    hasBreakpoint={breakpoints.has(step.id)}
-                    onToggleBreakpoint={() => store.getState().toggleBreakpoint(step.id)}
-                    showValidation={true}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-            <DragOverlay>
-              {draggedStep ? (
-                <div className="bg-bg-card border border-border-active rounded-lg px-3 py-2 shadow-lg text-sm text-text-primary opacity-90">
-                  {BLOCKS.find(b => b.type === draggedStep.type)?.label || draggedStep.type}
+                  {steps.map((step, index) => (
+                    <StepCard
+                      key={step.id}
+                      step={step}
+                      index={index}
+                      block={BLOCKS.find(b => b.type === step.type)}
+                      onUpdate={params => updateStep(step.id, params)}
+                      onRemove={() => removeStep(step.id)}
+                      onDuplicate={() => duplicateStep(step.id)}
+                      highlighted={step.id === highlightedStepId}
+                      selected={selectedStepIds.has(step.id)}
+                      onSelect={(e) => handleSelect(step.id, e)}
+                      hasBreakpoint={breakpoints.has(step.id)}
+                      onToggleBreakpoint={() => store.getState().toggleBreakpoint(step.id)}
+                      showValidation={true}
+                    />
+                  ))}
                 </div>
-              ) : null}
-            </DragOverlay>
-          </DndContext>
+              </SortableContext>
+              <DragOverlay>
+                {draggedStep ? (
+                  <div className="bg-bg-card border border-border-active rounded-lg px-4 py-2.5 shadow-lg text-sm text-text-primary opacity-90">
+                    {BLOCKS.find(b => b.type === draggedStep.type)?.label || draggedStep.type}
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+
+            {/* Add Step button - anchored below steps */}
+            <button
+              className="w-full flex items-center justify-center gap-2 mt-5 py-3.5 rounded-lg border-2 border-dashed border-border hover:border-accent hover:bg-accent/5 text-text-tertiary hover:text-accent transition-all text-sm font-medium"
+              onClick={() => store.getState().setActionPickerOpen(true)}
+            >
+              <Plus size={16} />
+              Add Step
+            </button>
+          </div>
         )}
       </div>
     </div>

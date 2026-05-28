@@ -1,0 +1,92 @@
+{
+  "version": "3.0.0",
+  "name": "Flutter AIA - Login & Post-Login",
+  "description": "Cognito login flow tests - form validation, error handling, successful login, and post-login navigation",
+  "baseUrl": "https://d3aqb94365ohsc.cloudfront.net",
+  "tests": [
+    {
+      "id": "test-login-form-visible",
+      "name": "Login - Form Elements Present",
+      "tags": ["assertion", "login"],
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "https://d3aqb94365ohsc.cloudfront.net" } },
+        { "id": "s2", "type": "wait_for_element", "params": { "selector": "input[name='username']", "timeout": 30000 } },
+        { "id": "s3", "type": "assert_visible", "params": { "selector": "input[name='username']" } },
+        { "id": "s4", "type": "assert_visible", "params": { "selector": "input[name='password']" } },
+        { "id": "s5", "type": "assert_visible", "params": { "selector": "button[type='submit']" } },
+        { "id": "s6", "type": "get_text", "params": { "selector": "button[type='submit']", "saveAs": "btnText" } },
+        { "id": "s7", "type": "log", "params": { "message": "Sign in button text: ${btnText}" } },
+        { "id": "s8", "type": "get_attribute", "params": { "selector": "input[name='username']", "attribute": "placeholder", "saveAs": "userPlaceholder" } },
+        { "id": "s9", "type": "get_attribute", "params": { "selector": "input[name='password']", "attribute": "placeholder", "saveAs": "pwdPlaceholder" } },
+        { "id": "s10", "type": "log", "params": { "message": "Placeholders - Username: ${userPlaceholder}, Password: ${pwdPlaceholder}" } },
+        { "id": "s11", "type": "get_attribute", "params": { "selector": "input[name='password']", "attribute": "type", "saveAs": "pwdType" } },
+        { "id": "s12", "type": "log", "params": { "message": "Password field type: ${pwdType}" } },
+        { "id": "s13", "type": "screenshot", "params": { "name": "login-form" } }
+      ]
+    },
+    {
+      "id": "test-login-empty-submit",
+      "name": "Login - Empty Submit Validation",
+      "tags": ["assertion", "login", "negative"],
+      "steps": [
+        { "id": "e1", "type": "navigate", "params": { "url": "https://d3aqb94365ohsc.cloudfront.net" } },
+        { "id": "e2", "type": "wait_for_element", "params": { "selector": "button[type='submit']", "timeout": 30000 } },
+        { "id": "e3", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "e4", "type": "wait", "params": { "ms": 2000 } },
+        { "id": "e5", "type": "assert_visible", "params": { "selector": "input[name='username']" } },
+        { "id": "e6", "type": "screenshot", "params": { "name": "empty-submit-validation" } }
+      ]
+    },
+    {
+      "id": "test-login-invalid-credentials",
+      "name": "Login - Invalid Credentials Error",
+      "tags": ["interaction", "login", "negative"],
+      "steps": [
+        { "id": "i1", "type": "navigate", "params": { "url": "https://d3aqb94365ohsc.cloudfront.net" } },
+        { "id": "i2", "type": "wait_for_element", "params": { "selector": "input[name='username']", "timeout": 30000 } },
+        { "id": "i3", "type": "fill", "params": { "selector": "input[name='username']", "value": "fakeuser@invalid.com" } },
+        { "id": "i4", "type": "fill", "params": { "selector": "input[name='password']", "value": "BadPassword999!" } },
+        { "id": "i5", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "i6", "type": "wait", "params": { "ms": 5000 } },
+        { "id": "i7", "type": "assert_visible", "params": { "selector": "input[name='username']" } },
+        { "id": "i8", "type": "assert_url", "params": { "expected": "d3aqb94365ohsc.cloudfront.net", "mode": "contains" } },
+        { "id": "i9", "type": "screenshot", "params": { "name": "login-error-shown" } }
+      ]
+    },
+    {
+      "id": "test-login-and-verify-chat",
+      "name": "Login - Successful Login & Chat Page",
+      "tags": ["e2e", "login", "navigation"],
+      "steps": [
+        { "id": "f1", "type": "navigate", "params": { "url": "https://d3aqb94365ohsc.cloudfront.net" } },
+        { "id": "f2", "type": "wait_for_element", "params": { "selector": "input[name='username']", "timeout": 30000 } },
+        { "id": "f3", "type": "fill", "params": { "selector": "input[name='username']", "value": "YOUR_USERNAME" } },
+        { "id": "f4", "type": "fill", "params": { "selector": "input[name='password']", "value": "YOUR_PASSWORD" } },
+        { "id": "f5", "type": "screenshot", "params": { "name": "credentials-entered" } },
+        { "id": "f6", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "f7", "type": "wait_for_element", "params": { "selector": "textarea[placeholder='What can I help you with?']", "timeout": 30000 } },
+        { "id": "f8", "type": "assert_visible", "params": { "selector": "textarea[placeholder='What can I help you with?']" } },
+        { "id": "f9", "type": "get_url", "params": { "saveAs": "postLoginUrl" } },
+        { "id": "f10", "type": "log", "params": { "message": "Post-login URL: ${postLoginUrl}" } },
+        { "id": "f11", "type": "screenshot", "params": { "name": "chat-page-loaded" } }
+      ]
+    },
+    {
+      "id": "test-login-then-navigate",
+      "name": "Login - Post Login Sidebar Navigation",
+      "tags": ["e2e", "login", "navigation"],
+      "steps": [
+        { "id": "nav1", "type": "navigate", "params": { "url": "https://d3aqb94365ohsc.cloudfront.net" } },
+        { "id": "nav2", "type": "wait_for_element", "params": { "selector": "input[name='username']", "timeout": 30000 } },
+        { "id": "nav3", "type": "fill", "params": { "selector": "input[name='username']", "value": "YOUR_USERNAME" } },
+        { "id": "nav4", "type": "fill", "params": { "selector": "input[name='password']", "value": "YOUR_PASSWORD" } },
+        { "id": "nav5", "type": "click", "params": { "selector": "button[type='submit']" } },
+        { "id": "nav6", "type": "wait_for_element", "params": { "selector": "textarea[placeholder='What can I help you with?']", "timeout": 30000 } },
+        { "id": "nav7", "type": "screenshot", "params": { "name": "post-login-chat" } },
+        { "id": "nav8", "type": "click", "params": { "selector": "button[aria-label='Toggle navigation menu']" } },
+        { "id": "nav9", "type": "wait", "params": { "ms": 1000 } },
+        { "id": "nav10", "type": "screenshot", "params": { "name": "sidebar-open" } }
+      ]
+    }
+  ]
+}

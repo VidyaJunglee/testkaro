@@ -14,7 +14,7 @@ type EventSender = (event: any) => void;
  */
 function getSelectorGeneratorScript(): string {
   return `
-    window.__testflowRecorder = {
+    window.__testkaroRecorder = {
       getSelectors(el) {
         const selectors = [];
 
@@ -87,14 +87,14 @@ function getRecorderInjectionScript(): string {
       let inputTimer = null;
 
       function sendAction(action) {
-        window.__testflowSendAction(JSON.stringify(action));
+        window.__testkaroSendAction(JSON.stringify(action));
       }
 
       // Click listener
       document.addEventListener('click', (e) => {
         const el = e.target;
         if (!el || el === document.body) return;
-        const selectors = window.__testflowRecorder.getSelectors(el);
+        const selectors = window.__testkaroRecorder.getSelectors(el);
         sendAction({ type: 'click', selectors, tagName: el.tagName, text: el.textContent?.trim()?.slice(0, 50) });
       }, true);
 
@@ -106,7 +106,7 @@ function getRecorderInjectionScript(): string {
         clearTimeout(inputTimer);
         inputTimer = setTimeout(() => {
           if (lastInputEl) {
-            const selectors = window.__testflowRecorder.getSelectors(lastInputEl);
+            const selectors = window.__testkaroRecorder.getSelectors(lastInputEl);
             sendAction({ type: 'fill', selectors, value: lastInputEl.value });
             lastInputEl = null;
           }
@@ -117,11 +117,11 @@ function getRecorderInjectionScript(): string {
       document.addEventListener('change', (e) => {
         const el = e.target;
         if (el && el.tagName === 'SELECT') {
-          const selectors = window.__testflowRecorder.getSelectors(el);
+          const selectors = window.__testkaroRecorder.getSelectors(el);
           sendAction({ type: 'select', selectors, value: el.value });
         }
         if (el && el.type === 'checkbox') {
-          const selectors = window.__testflowRecorder.getSelectors(el);
+          const selectors = window.__testkaroRecorder.getSelectors(el);
           sendAction({ type: el.checked ? 'check' : 'uncheck', selectors });
         }
       }, true);
@@ -130,12 +130,12 @@ function getRecorderInjectionScript(): string {
       document.addEventListener('keydown', (e) => {
         if (['Enter', 'Escape', 'Tab'].includes(e.key)) {
           const el = e.target;
-          const selectors = el && el !== document.body ? window.__testflowRecorder.getSelectors(el) : [];
+          const selectors = el && el !== document.body ? window.__testkaroRecorder.getSelectors(el) : [];
           sendAction({ type: 'press_key', selectors, key: e.key });
         }
       }, true);
 
-      console.log('[TestFlow Recorder] Active — recording user actions');
+      console.log('[TestKaro Recorder] Active — recording user actions');
     })();
   `;
 }
@@ -146,7 +146,7 @@ export async function startRecording(url: string, headed: boolean, send: EventSe
   const page = await context.newPage();
 
   // Expose function for recorder script to send actions
-  await page.exposeFunction('__testflowSendAction', (actionJson: string) => {
+  await page.exposeFunction('__testkaroSendAction', (actionJson: string) => {
     try {
       const action = JSON.parse(actionJson);
       const step = actionToStep(action);

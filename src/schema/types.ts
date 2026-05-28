@@ -1,5 +1,5 @@
 // ─── Core Schema ─────────────────────────────────────────────────────────────
-// The .testflow.json format — the single source of truth
+// The .tk.json format — the single source of truth
 
 export interface TestFile {
   version: string;
@@ -82,4 +82,35 @@ export interface RunResult {
   file: string;
   results: TestResult[];
   summary: { total: number; passed: number; failed: number; skipped: number; duration: number };
+}
+
+// ─── Modular Project Structure ───────────────────────────────────────────────
+
+export interface Environment {
+  id: string;
+  name: string;
+  variables: Record<string, string>;
+}
+
+export interface AppManifest {
+  version: string;
+  name: string;
+  description?: string;
+  baseUrl?: string;
+  variables?: Record<string, unknown>;
+  modules: ModuleRef[];
+}
+
+export interface ModuleRef {
+  id: string;
+  folder: string; // relative path to .tk.module/ directory
+}
+
+export interface ModuleFile {
+  id: string;
+  name: string;
+  description?: string;
+  baseUrl?: string; // overrides app-level baseUrl
+  order: number;
+  tests: TestCase[];
 }

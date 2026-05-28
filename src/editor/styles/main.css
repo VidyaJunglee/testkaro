@@ -21,7 +21,7 @@
 }
 
 /* Dark mode overrides */
-.dark {
+:root.dark {
   --color-bg-primary: #0f1117;
   --color-bg-secondary: #161922;
   --color-bg-tertiary: #1c2030;
@@ -45,8 +45,8 @@
 body {
   @apply bg-bg-primary text-text-primary antialiased;
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
 }
 
 /* Smooth transitions */
@@ -77,12 +77,21 @@ body {
   to { opacity: 1; transform: translateX(0); }
 }
 
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .animate-fade-in {
   animation: fadeIn 200ms ease-out;
 }
 
 .animate-slide-in {
   animation: slideIn 150ms ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 200ms ease-out;
 }
 
 /* Focus ring utility */
@@ -94,5 +103,11 @@ body {
 /* kbd styling */
 kbd {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
-  font-size: 10px;
+  font-size: 11px;
 }
+
+/* Scale up small text globally */
+.text-xs { font-size: 13px !important; line-height: 1.4 !important; }
+.text-sm { font-size: 14px !important; line-height: 1.5 !important; }
+.text-\[10px\] { font-size: 11px !important; }
+.text-\[11px\] { font-size: 12px !important; }

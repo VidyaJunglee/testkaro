@@ -27,6 +27,7 @@ export interface FileSlice {
   newFile: () => void;
   addTest: () => void;
   deleteTest: (index: number) => void;
+  renameTest: (index: number, name: string) => void;
   updateSteps: (steps: TestStep[]) => void;
 }
 
@@ -61,7 +62,10 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
 
   loadFile: (stored) => set({
     fileId: stored.id,
-    file: stored.file,
+    file: {
+      ...stored.file,
+      tests: stored.file.tests?.length ? stored.file.tests : [{ id: crypto.randomUUID(), name: 'Test 1', steps: [] }],
+    },
     activeTestIndex: 0,
     dirty: false,
   }),
@@ -74,25 +78,36 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
   }),
 
   addTest: () => set(state => {
-    const newTest: TestCase = { id: crypto.randomUUID(), name: `Test ${state.file.tests.length + 1}`, steps: [] };
+    const tests = state.file.tests || [];
+    const newTest: TestCase = { id: crypto.randomUUID(), name: `Test ${tests.length + 1}`, steps: [] };
     return {
-      file: { ...state.file, tests: [...state.file.tests, newTest] },
-      activeTestIndex: state.file.tests.length,
+      file: { ...state.file, tests: [...tests, newTest] },
+      activeTestIndex: tests.length,
       dirty: true,
     };
   }),
 
   deleteTest: (index) => set(state => {
-    if (state.file.tests.length <= 1) return state;
-    return {
-      file: { ...state.file, tests: state.file.tests.filter((_, i) => i !== index) },
-      activeTestIndex: Math.min(state.activeTestIndex, state.file.tests.length - 2),
-      dirty: true,
-    };
+    const currentTests = state.file.tests || [];
+    if (currentTests.length <= 1) return state;
+    const tests = currentTests.filter((_, i) => i !== index);
+    let activeTestIndex = state.activeTestIndex;
+    if (index < activeTestIndex) {
+      activeTestIndex--;
+    } else if (index === activeTestIndex) {
+      activeTestIndex = Math.min(activeTestIndex, tests.length - 1);
+    }
+    return { file: { ...state.file, tests }, activeTestIndex, dirty: true };
+  }),
+
+  renameTest: (index, name) => set(state => {
+    const tests = [...(state.file.tests || [])];
+    tests[index] = { ...tests[index], name };
+    return { file: { ...state.file, tests }, dirty: true };
   }),
 
   updateSteps: (steps) => set(state => {
-    const tests = [...state.file.tests];
+    const tests = [...(state.file.tests || [])];
     tests[state.activeTestIndex] = { ...tests[state.activeTestIndex], steps };
     return { file: { ...state.file, tests }, dirty: true };
   }),

@@ -67,7 +67,7 @@ const screenshot: BlockDefinition = {
   async execute(params, ctx) {
     const page = ctx.page as any;
     const start = Date.now();
-    const path = `testflow-results/screenshots/${params.name || Date.now()}.png`;
+    const path = `testkaro-results/screenshots/${params.name || Date.now()}.png`;
     await page.screenshot({ path });
     return { stepId: '', type: 'screenshot', status: 'passed', duration: Date.now() - start, output: path };
   },

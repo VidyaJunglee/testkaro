@@ -8,6 +8,9 @@ export interface NetworkEntry {
   error?: string;
   timestamp: number;
   phase: 'request' | 'response' | 'error';
+  requestHeaders?: Record<string, string>;
+  postData?: string | null;
+  responseHeaders?: Record<string, string>;
 }
 
 export interface ConsoleEntry {

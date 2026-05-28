@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TestStep } from '../../schema';
 import { EditorBlock } from '../blocks';
+import { VariableInput } from './VariableInput';
 import { GripVertical, Trash2, Copy, ChevronDown, ChevronRight, CircleDot } from 'lucide-react';
 
 interface Props {
@@ -46,7 +47,7 @@ export function StepCard({ step, index, block, onUpdate, onRemove, onDuplicate, 
     <div className="relative">
       {/* Connector line */}
       {index > 0 && (
-        <div className="absolute left-5 -top-1.5 w-px h-1.5 bg-border" />
+        <div className="absolute left-6 -top-2.5 w-px h-2.5 bg-border" />
       )}
 
       <div
@@ -78,68 +79,68 @@ export function StepCard({ step, index, block, onUpdate, onRemove, onDuplicate, 
         </button>
 
         {/* Header */}
-        <div className="flex items-center gap-2 pl-4 pr-2 py-2">
+        <div className="flex items-center gap-2.5 pl-5 pr-3 py-3">
           <div {...listeners} className="cursor-grab active:cursor-grabbing text-text-tertiary hover:text-text-secondary transition-colors p-0.5" {...attributes}>
-            <GripVertical size={12} />
+            <GripVertical size={14} />
           </div>
 
-          <span className="text-[10px] text-text-tertiary font-mono w-5">{index + 1}</span>
+          <span className="text-[11px] text-text-tertiary font-mono w-6">{index + 1}</span>
 
           <button
             className="p-0.5 text-text-tertiary hover:text-text-secondary"
             onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
           >
-            {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
           </button>
 
-          <span className="text-xs font-semibold text-text-primary">{block?.label || step.type}</span>
+          <span className="text-sm font-semibold text-text-primary">{block?.label || step.type}</span>
 
           {/* Inline param preview when collapsed */}
           {!expanded && block?.inputs[0] && (block.inputs[0].name in step.params) && (
-            <span className="text-[10px] text-text-tertiary truncate max-w-[200px] ml-1">
+            <span className="text-xs text-text-tertiary truncate max-w-[240px] ml-1">
               {String(step.params[block.inputs[0].name] ?? '')}
             </span>
           )}
 
           {/* Validation badge */}
           {hasValidationError && !expanded && (
-            <span className="text-[9px] px-1.5 py-0.5 bg-danger/10 text-danger rounded font-medium ml-1">
+            <span className="text-[10px] px-1.5 py-0.5 bg-danger/10 text-danger rounded font-medium ml-1">
               {missingRequired.length} required
             </span>
           )}
 
-          <div className="ml-auto flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
             <button
               className="p-1.5 rounded text-text-tertiary hover:text-accent hover:bg-accent/5 transition-all"
               onClick={e => { e.stopPropagation(); onDuplicate(); }}
               title="Duplicate"
             >
-              <Copy size={11} />
+              <Copy size={13} />
             </button>
             <button
               className="p-1.5 rounded text-text-tertiary hover:text-danger hover:bg-danger/5 transition-all"
               onClick={e => { e.stopPropagation(); onRemove(); }}
               title="Delete"
             >
-              <Trash2 size={11} />
+              <Trash2 size={13} />
             </button>
           </div>
         </div>
 
         {/* Params */}
         {expanded && block && block.inputs.length > 0 && (
-          <div className="pl-11 pr-3 pb-2.5 space-y-1.5">
+          <div className="pl-12 pr-4 pb-3.5 space-y-2.5">
             {block.inputs.map(input => {
               const isMissing = showValidation && input.required && !step.params[input.name];
               return (
-                <div key={input.name} className="flex items-center gap-2">
-                  <label className="text-[10px] text-text-tertiary w-16 shrink-0 text-right">
-                    {input.name}
-                    {input.required && <span className="text-danger">*</span>}
+                <div key={input.name} className="flex items-center gap-3">
+                  <label className="text-xs text-text-tertiary w-20 shrink-0 text-right">
+                    {input.label}
+                    {input.required && <span className="text-danger ml-0.5">*</span>}
                   </label>
                   {input.type === 'dropdown' ? (
                     <select
-                      className={`flex-1 px-2 py-1 text-xs bg-bg-input border rounded outline-none focus:border-border-active transition-all ${
+                      className={`flex-1 px-3 py-1.5 text-sm bg-bg-input border rounded-md outline-none focus:border-border-active transition-all ${
                         isMissing ? 'border-danger/50 bg-danger/5' : 'border-border-subtle'
                       }`}
                       value={String(step.params[input.name] || '')}
@@ -152,35 +153,35 @@ export function StepCard({ step, index, block, onUpdate, onRemove, onDuplicate, 
                   ) : input.type === 'checkbox' ? (
                     <input
                       type="checkbox"
-                      className="w-3.5 h-3.5 rounded border-border-subtle accent-accent"
+                      className="w-4 h-4 rounded border-border-subtle accent-accent"
                       checked={!!step.params[input.name]}
                       onChange={e => handleParamChange(input.name, e.target.checked)}
                       onClick={e => e.stopPropagation()}
                     />
                   ) : input.type === 'code' ? (
-                    <textarea
-                      className={`flex-1 px-2 py-1.5 text-xs bg-bg-input border rounded outline-none focus:border-border-active font-mono resize-none h-16 transition-all ${
+                    <VariableInput
+                      type="textarea"
+                      className={`flex-1 px-3 py-2 text-sm bg-bg-input border rounded-md outline-none focus:border-border-active font-mono resize-none h-20 transition-all ${
                         isMissing ? 'border-danger/50 bg-danger/5' : 'border-border-subtle'
                       }`}
                       value={String(step.params[input.name] || '')}
-                      onChange={e => handleParamChange(input.name, e.target.value)}
+                      onChange={v => handleParamChange(input.name, v)}
                       onClick={e => e.stopPropagation()}
                       placeholder={input.placeholder}
                     />
                   ) : (
-                    <input
-                      className={`flex-1 px-2 py-1 text-xs bg-bg-input border rounded outline-none focus:border-border-active transition-all ${
+                    <VariableInput
+                      className={`flex-1 px-3 py-1.5 text-sm bg-bg-input border rounded-md outline-none focus:border-border-active transition-all ${
                         isMissing ? 'border-danger/50 bg-danger/5' : 'border-border-subtle'
                       }`}
-                      type={input.type === 'number' ? 'number' : 'text'}
                       value={String(step.params[input.name] || '')}
-                      onChange={e => handleParamChange(input.name, input.type === 'number' ? (e.target.value === '' ? 0 : Number(e.target.value)) : e.target.value)}
+                      onChange={v => handleParamChange(input.name, input.type === 'number' ? (v === '' ? 0 : Number(v)) : v)}
                       onClick={e => e.stopPropagation()}
                       placeholder={input.placeholder}
                     />
                   )}
                   {isMissing && (
-                    <span className="text-[9px] text-danger shrink-0">Required</span>
+                    <span className="text-[10px] text-danger shrink-0">Required</span>
                   )}
                 </div>
               );

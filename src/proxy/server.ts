@@ -124,6 +124,6 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`[TestFlow Proxy] Running on http://localhost:${PORT}`);
-  console.log(`[TestFlow Proxy] Usage: http://localhost:${PORT}/proxy?url=https://www.google.com`);
+  console.log(`[TestKaro Proxy] Running on http://localhost:${PORT}`);
+  console.log(`[TestKaro Proxy] Usage: http://localhost:${PORT}/proxy?url=https://www.google.com`);
 });

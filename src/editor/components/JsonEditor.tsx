@@ -1,7 +1,8 @@
 import React, { useRef, useEffect, useCallback } from 'react';
 import Editor, { OnMount, BeforeMount } from '@monaco-editor/react';
 import { TestFile } from '../../schema';
-import { getTestFlowSchema } from '../schema/testflowSchema';
+import { getTkSchema } from '../schema/tkSchema';
+import { useStore } from '../store';
 
 interface Props {
   file: TestFile;
@@ -38,12 +39,12 @@ export function JsonEditor({ file, onChange }: Props) {
   }, [file]);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
-    const schema = getTestFlowSchema();
+    const schema = getTkSchema();
     monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
       validate: true,
       schemas: [
         {
-          uri: 'https://testflow.dev/schema.json',
+          uri: 'https://testkaro.dev/schema.json',
           fileMatch: ['*'],
           schema,
         },
@@ -123,7 +124,7 @@ export function JsonEditor({ file, onChange }: Props) {
     <div className="flex flex-col flex-1 h-full bg-bg-primary">
       <div className="flex items-center gap-3 px-4 h-10 bg-bg-secondary border-b border-border">
         <span className="text-sm text-text-tertiary font-mono font-medium tracking-wide">
-          testflow.json
+          testkaro.json
         </span>
         <span className="text-xs text-text-tertiary ml-auto">
           Ctrl+Space for suggestions &middot; Tab to accept
@@ -133,7 +134,7 @@ export function JsonEditor({ file, onChange }: Props) {
         <Editor
           defaultLanguage="json"
           defaultValue={JSON.stringify(file, null, 2)}
-          theme="light"
+          theme={useStore(s => s.darkMode) ? 'vs-dark' : 'light'}
           beforeMount={handleBeforeMount}
           onMount={handleMount}
           onChange={handleChange}

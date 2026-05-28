@@ -9,12 +9,12 @@ const command = args[0];
 
 function printUsage(): void {
   console.log(`
-testflow - JSON-driven test runner
+testkaro - JSON-driven test runner
 
 Usage:
-  testflow run <file.testflow.json> [options]
-  testflow init [name]
-  testflow serve
+  testkaro run <file.tk.json> [options]
+  testkaro init [name]
+  testkaro serve
 
 Commands:
   run     Execute a test file
@@ -50,7 +50,7 @@ async function run(): Promise<void> {
         ],
       }],
     };
-    const path = `${name}.testflow.json`;
+    const path = `${name}.tk.json`;
     writeFileSync(path, JSON.stringify(file, null, 2));
     console.log(`Created ${path}`);
     return;
@@ -89,7 +89,7 @@ async function run(): Promise<void> {
     const result = await executeTestFile(testFile, options);
 
     const reporter = reporterIdx > -1 ? args[reporterIdx + 1] : 'console';
-    const outputDir = outputIdx > -1 ? args[outputIdx + 1] : 'testflow-results';
+    const outputDir = outputIdx > -1 ? args[outputIdx + 1] : 'testkaro-results';
 
     if (reporter === 'console') {
       printConsoleReport(result);

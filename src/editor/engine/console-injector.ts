@@ -16,7 +16,7 @@ export function getConsoleInjectorScript(): string {
   };
 
   function sendToParent(type, data) {
-    window.parent.postMessage({ __testflow: true, type: type, data: data }, '*');
+    window.parent.postMessage({ __testkaro: true, type: type, data: data }, '*');
   }
 
   ['log', 'warn', 'error', 'info', 'debug'].forEach(function(level) {

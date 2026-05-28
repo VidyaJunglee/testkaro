@@ -69,7 +69,7 @@ export class PlaywrightExecutor {
     };
 
     if (this.config.recordVideo) {
-      contextOptions.recordVideo = { dir: '/tmp/testflow-videos', size: { width: 1280, height: 720 } };
+      contextOptions.recordVideo = { dir: '/tmp/testkaro-videos', size: { width: 1280, height: 720 } };
     }
 
     this.context = await this.browser.newContext(contextOptions);
@@ -90,7 +90,8 @@ export class PlaywrightExecutor {
     // Capture network
     this.page.on('request', (req) => {
       const id = `net-${++this.networkId}`;
-      (req as any).__testflowId = id;
+      (req as any).__testkaroId = id;
+      (req as any).__testkaroStart = Date.now();
       this.emit({
         type: 'network',
         data: {
@@ -99,28 +100,35 @@ export class PlaywrightExecutor {
           url: req.url(),
           phase: 'request',
           timestamp: Date.now(),
+          requestHeaders: req.headers(),
+          postData: req.postData() || null,
         },
       });
     });
 
     this.page.on('response', (res) => {
-      const id = (res.request() as any).__testflowId || `net-${++this.networkId}`;
+      const req = res.request();
+      const id = (req as any).__testkaroId || `net-${++this.networkId}`;
+      const startTime = (req as any).__testkaroStart || Date.now();
       this.emit({
         type: 'network',
         data: {
           id,
-          method: res.request().method(),
+          method: req.method(),
           url: res.url(),
           status: res.status(),
           phase: 'response',
           timestamp: Date.now(),
-          headers: res.headers(),
+          duration: Date.now() - startTime,
+          requestHeaders: req.headers(),
+          postData: req.postData() || null,
+          responseHeaders: res.headers(),
         },
       });
     });
 
     this.page.on('requestfailed', (req) => {
-      const id = (req as any).__testflowId || `net-${++this.networkId}`;
+      const id = (req as any).__testkaroId || `net-${++this.networkId}`;
       this.emit({
         type: 'network',
         data: {
@@ -130,6 +138,8 @@ export class PlaywrightExecutor {
           phase: 'error',
           error: req.failure()?.errorText || 'Request failed',
           timestamp: Date.now(),
+          requestHeaders: req.headers(),
+          postData: req.postData() || null,
         },
       });
     });
@@ -206,16 +216,7 @@ export class PlaywrightExecutor {
         await this.executeStep(step.type, params, step.children);
         const duration = Date.now() - start;
 
-        // Take screenshot after each step (for gallery)
-        let screenshot: string | undefined;
-        try {
-          if (this.page) {
-            const buf = await this.page.screenshot({ type: 'png' });
-            screenshot = `data:image/png;base64,${buf.toString('base64')}`;
-          }
-        } catch {}
-
-        const result = { stepId: step.id, type: step.type, status: 'passed', duration, screenshot };
+        const result = { stepId: step.id, type: step.type, status: 'passed', duration, screenshot: undefined };
         results.push(result);
         this.emit({ type: 'step-end', data: result });
       } catch (err: any) {
@@ -432,7 +433,7 @@ export class PlaywrightExecutor {
       }
       case 'log': {
         const msg = String(this.resolveVars(params.message) || '');
-        this.emit({ type: 'console', data: { level: 'log', message: `[TestFlow] ${msg}`, timestamp: Date.now() } });
+        this.emit({ type: 'console', data: { level: 'log', message: `[TestKaro] ${msg}`, timestamp: Date.now() } });
         break;
       }
       case 'javascript': {

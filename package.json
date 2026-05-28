@@ -1,5 +1,5 @@
 {
-  "name": "@testflow/testflow",
+  "name": "@testkaro/testkaro",
   "version": "3.0.0",
   "type": "module",
   "description": "JSON-driven visual test automation - drag-and-drop or write JSON to build Playwright & API tests",
@@ -7,7 +7,7 @@
   "main": "dist/schema/index.js",
   "types": "dist/schema/index.d.ts",
   "bin": {
-    "testflow": "./dist/cli/index.js"
+    "testkaro": "./dist/cli/index.js"
   },
   "exports": {
     ".": {

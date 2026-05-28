@@ -1,8 +1,8 @@
 import { BLOCKS } from '../blocks';
 
-// JSON Schema that describes the .testflow.json format
+// JSON Schema that describes the .tk.json format
 // Monaco uses this for autocomplete, validation, and hover docs
-export function getTestFlowSchema() {
+export function getTkSchema() {
   const blockTypes = BLOCKS.map(b => b.type);
 
   // Build per-block param schemas
@@ -32,7 +32,7 @@ export function getTestFlowSchema() {
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     type: 'object',
-    description: 'TestFlow test file',
+    description: 'TestKaro test file',
     required: ['version', 'name', 'tests'],
     properties: {
       version: {

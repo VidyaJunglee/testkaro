@@ -46,7 +46,7 @@ export async function executeTestFile(file: TestFile, options: ExecutorOptions =
     page,
     browser,
     baseUrl: options.baseUrl || file.baseUrl,
-    log: (msg) => console.log(`[testflow] ${msg}`),
+    log: (msg) => console.log(`[testkaro] ${msg}`),
   };
 
   const results: TestResult[] = [];

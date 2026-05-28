@@ -6,19 +6,30 @@ import { StoredRun } from '../storage/db';
 // Manages test run state, results, network, console, screenshots
 
 export type RunState = 'idle' | 'connecting' | 'running' | 'done';
+export type RunMode = 'current' | 'module' | 'all';
 
 export interface StepResult {
   stepId: string;
   type: string;
   status: 'passed' | 'failed' | 'skipped';
   duration: number;
+  startedAt: number;
   error?: string;
   screenshot?: string;
+  testIndex?: number; // which test this result belongs to (for "run all" mode)
+}
+
+export interface RunAllProgress {
+  currentTestIndex: number;
+  totalTests: number;
+  currentTestName: string;
 }
 
 export interface ExecutionSlice {
   // State
   runState: RunState;
+  runMode: RunMode;
+  runAllProgress: RunAllProgress | null;
   results: StepResult[];
   networkLog: NetworkEntry[];
   consoleLog: ConsoleEntry[];
@@ -32,6 +43,8 @@ export interface ExecutionSlice {
 
   // Actions
   setRunState: (state: RunState) => void;
+  setRunMode: (mode: RunMode) => void;
+  setRunAllProgress: (progress: RunAllProgress | null) => void;
   addResult: (result: StepResult) => void;
   addScreenshot: (screenshot: { label: string; data: string }) => void;
   addNetworkEntry: (entry: NetworkEntry) => void;
@@ -53,6 +66,8 @@ export interface ExecutionSlice {
 
 export const createExecutionSlice: StateCreator<ExecutionSlice, [], [], ExecutionSlice> = (set, get) => ({
   runState: 'idle',
+  runMode: 'current',
+  runAllProgress: null,
   results: [],
   networkLog: [],
   consoleLog: [],
@@ -65,6 +80,8 @@ export const createExecutionSlice: StateCreator<ExecutionSlice, [], [], Executio
   recordVideo: false,
 
   setRunState: (runState) => set({ runState }),
+  setRunMode: (runMode) => set({ runMode }),
+  setRunAllProgress: (runAllProgress) => set({ runAllProgress }),
 
   addResult: (result) => set(state => ({
     results: [...state.results, result],
@@ -107,6 +124,7 @@ export const createExecutionSlice: StateCreator<ExecutionSlice, [], [], Executio
     screenshots: [],
     errorMsg: null,
     paused: false,
+    runAllProgress: null,
   }),
 
   passedCount: () => get().results.filter(r => r.status === 'passed').length,

@@ -93,7 +93,7 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocketServer({ server, path: '/ws' });
 
 wss.on('connection', (ws: WebSocket) => {
-  console.log('[TestFlow] WebSocket client connected');
+  console.log('[TestKaro] WebSocket client connected');
   let executor: PlaywrightExecutor | null = null;
   let recordingSession: any = null;
 
@@ -184,7 +184,7 @@ wss.on('connection', (ws: WebSocket) => {
   });
 
   ws.on('close', async () => {
-    console.log('[TestFlow] WebSocket client disconnected');
+    console.log('[TestKaro] WebSocket client disconnected');
     if (executor) { executor.abort(); await executor.close(); }
     if (recordingSession) { await stopRecording(recordingSession); }
   });
@@ -193,7 +193,7 @@ wss.on('connection', (ws: WebSocket) => {
 // ─── START ─────────────────────────────────────────────────────────────────────
 
 server.listen(PORT, () => {
-  console.log(`[TestFlow Server] Running on http://localhost:${PORT}`);
-  console.log(`[TestFlow Server] Proxy: http://localhost:${PORT}/proxy?url=<target>`);
-  console.log(`[TestFlow Server] WebSocket: ws://localhost:${PORT}/ws`);
+  console.log(`[TestKaro Server] Running on http://localhost:${PORT}`);
+  console.log(`[TestKaro Server] Proxy: http://localhost:${PORT}/proxy?url=<target>`);
+  console.log(`[TestKaro Server] WebSocket: ws://localhost:${PORT}/ws`);
 });
