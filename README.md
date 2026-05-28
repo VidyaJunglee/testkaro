@@ -1,294 +1,125 @@
-# TestFlow
+# TestKaro
 
-A visual test automation tool using Blockly for building API and web (Playwright) tests. Design tests visually, save them as JSON files for version control, and run them in CI with the CLI runner.
+Visual test automation studio — build Playwright and API tests with drag-and-drop or JSON, run them locally or in CI.
 
 ## Features
 
-- **Visual Test Builder** - Drag-and-drop blocks to create tests without coding
-- **API Testing** - Built-in blocks for HTTP requests (GET, POST, PUT, PATCH, DELETE) and assertions
-- **Web Testing** - Playwright-powered blocks for browser automation (navigate, click, type, assertions)
-- **Git-Friendly** - Tests saved as JSON files that can be versioned in repositories
-- **CLI Runner** - Run tests in CI/CD pipelines with JUnit/JSON reports
-- **Extensible** - Create custom blocks with the plugin system
+- **Visual Step Builder** — drag-and-drop blocks to compose test flows without writing code
+- **JSON-first** — tests stored as `.tk.json` files, fully versionable in git
+- **Modular Architecture** — organize tests into modules within a project
+- **28 Built-in Blocks** — navigation, interaction, assertion, API, logic, and data blocks
+- **Live Execution** — run tests in real-time with step-by-step timeline, console, and network capture
+- **Environment Variables** — global and per-app environments with variable interpolation (`{{var}}`)
+- **Undo/Redo** — full temporal state with keyboard shortcuts
+- **Dark Mode** — system-aware theme with manual toggle
+- **CLI Runner** — execute tests headlessly in CI/CD pipelines
 
 ## Quick Start
-
-### Installation
 
 ```bash
 # Install dependencies
 npm install
 
-# Build all packages
-npm run build
-
 # Install Playwright browsers
 npx playwright install chromium
-```
 
-### Development
-
-```bash
-# Start the development server (frontend + backend)
+# Start dev server (frontend + backend)
 npm run dev
 ```
 
-Open http://localhost:3000 in your browser to use the visual editor.
-
-### Running Tests
-
-```bash
-# Run tests via CLI
-npm run cli run "examples/tests/*.testflow.json"
-
-# Run with headed browser (visible)
-npm run cli run tests/*.testflow.json --headed
-
-# Run with JUnit output for CI
-npm run cli run tests/*.testflow.json --reporter junit --output ./results
-
-# Validate test files
-npm run cli validate "examples/tests/*.testflow.json"
-
-# List tests in files
-npm run cli list "examples/tests/*.testflow.json"
-```
+Open http://localhost:5173 to launch the editor.
 
 ## Project Structure
 
 ```
-testflow/
+testkaro/
 ├── src/
-│   ├── core/          # Types, block definitions, plugin system
-│   ├── client/        # React + Blockly visual editor
-│   ├── server/        # Express server for test execution
-│   └── cli/           # CLI runner for CI integration
-├── examples/
-│   ├── tests/         # Example test files
-│   └── plugins/       # Example custom plugins
-└── testflow.config.json
+│   ├── blocks/         # Block definitions (navigation, interaction, assertion, api, logic, data)
+│   ├── schema/         # Core types — TestFile, TestCase, TestStep, BlockDefinition
+│   ├── engine/         # Test executor — runs steps against Playwright
+│   ├── server/         # WebSocket server for execution, recording, proxy
+│   ├── proxy/          # CORS proxy for API testing
+│   ├── cli/            # CLI runner for CI integration
+│   └── editor/         # React frontend
+│       ├── components/ # UI — Dashboard, TopBar, Sidebar, ModuleOverview, StepCard, etc.
+│       ├── store/      # Zustand store (file, session, execution, UI, env slices)
+│       ├── storage/    # IndexedDB persistence, filesystem sync, app registry
+│       ├── engine/     # Browser-side executor with console/network capture
+│       ├── router/     # Client-side hash router
+│       └── providers/  # Storage provider abstraction (IndexedDB, File System Access API)
+├── examples/           # Example test files
+└── package.json
 ```
 
-## Test File Format
-
-Tests are stored as `.testflow.json` files:
+## Test File Format (`.tk.json`)
 
 ```json
 {
-  "version": "1.0.0",
-  "name": "My Test Suite",
-  "variables": {
-    "baseUrl": { "type": "string", "default": "https://example.com" }
-  },
-  "beforeAll": [],
-  "afterAll": [],
-  "beforeEach": [],
-  "afterEach": [],
-  "procedures": {
-    "login": {
-      "name": "login",
-      "params": [{ "name": "username", "type": "string" }],
-      "steps": []
-    }
-  },
+  "version": "3.0.0",
+  "name": "Login Module",
   "tests": [
     {
       "id": "test-1",
-      "name": "Login test",
-      "data": [
-        { "name": "admin", "values": { "username": "admin", "password": "123" } },
-        { "name": "user", "values": { "username": "user", "password": "456" } }
-      ],
-      "steps": []
+      "name": "Valid login redirects to dashboard",
+      "steps": [
+        { "id": "s1", "type": "navigate", "params": { "url": "{{baseUrl}}/login" } },
+        { "id": "s2", "type": "fill", "params": { "selector": "#email", "value": "{{email}}" } },
+        { "id": "s3", "type": "fill", "params": { "selector": "#password", "value": "{{password}}" } },
+        { "id": "s4", "type": "click", "params": { "selector": "button[type=submit]" } },
+        { "id": "s5", "type": "assert_url", "params": { "value": "/dashboard", "match": "contains" } }
+      ]
     }
   ]
 }
 ```
 
-## Lifecycle Hooks
+## Block Categories
 
-TestFlow supports setup/teardown hooks at multiple levels:
+| Category | Blocks |
+|----------|--------|
+| **Navigation** | `navigate`, `reload`, `go_back`, `go_forward`, `wait_for_url` |
+| **Interaction** | `click`, `fill`, `type`, `select`, `checkbox`, `hover`, `press_key`, `scroll`, `upload` |
+| **Assertion** | `assert_visible`, `assert_text`, `assert_text_equals`, `assert_url`, `assert_title`, `assert_element_count` |
+| **API** | `api_request`, `assert_status`, `assert_body`, `extract_value` |
+| **Logic** | `set_variable`, `if`, `repeat`, `for_each`, `try_catch`, `wait`, `log`, `fail` |
+| **Data** | `screenshot`, `get_text`, `get_attribute`, `store_value` |
 
-| Hook | Level | Description |
-|------|-------|-------------|
-| `beforeAll` | Suite | Runs once before all tests |
-| `afterAll` | Suite | Runs once after all tests |
-| `beforeEach` | Suite | Runs before each test |
-| `afterEach` | Suite | Runs after each test |
-| `beforeEach` | Test | Runs before this specific test |
-| `afterEach` | Test | Runs after this specific test |
+## CLI
 
-## Data-Driven Testing
+```bash
+# Run tests
+npx testkaro run "tests/**/*.tk.json"
 
-Run the same test with different data sets:
+# Headed mode
+npx testkaro run tests/ --headed
 
-```json
-{
-  "id": "test-login",
-  "name": "Login with credentials",
-  "data": [
-    { "name": "admin user", "values": { "username": "admin", "password": "admin123" } },
-    { "name": "regular user", "values": { "username": "user1", "password": "pass123" } }
-  ],
-  "steps": []
-}
+# With variables
+npx testkaro run tests/ --var baseUrl=http://localhost:3000
+
+# JUnit output for CI
+npx testkaro run tests/ --reporter junit --output ./results
 ```
 
-Access data values using `data_get_current` block with the key name, or use `${username}` variable syntax.
-
-## Custom Procedures
-
-Define reusable action sequences (like functions):
-
-```json
-{
-  "procedures": {
-    "login": {
-      "name": "login",
-      "description": "Login with credentials",
-      "params": [
-        { "name": "username", "type": "string" },
-        { "name": "password", "type": "string" }
-      ],
-      "steps": []
-    }
-  }
-}
-```
-
-Call procedures using the `procedure_call` block with arguments.
-
-## Built-in Blocks
-
-### API Blocks
-
-| Block | Description |
-|-------|-------------|
-| `GET` | Perform HTTP GET request |
-| `POST` | Perform HTTP POST request |
-| `PUT` | Perform HTTP PUT request |
-| `PATCH` | Perform HTTP PATCH request |
-| `DELETE` | Perform HTTP DELETE request |
-| `Assert Status` | Assert response status code |
-| `Assert Body Contains` | Assert response body contains value |
-| `Extract Value` | Extract value from response using JSON path |
-| `Headers` | Create headers with authentication |
-| `JSON Body` | Create JSON request body |
-
-### Web (Playwright) Blocks
-
-| Block | Description |
-|-------|-------------|
-| `Navigate` | Navigate to URL |
-| `Click` | Click an element |
-| `Fill` | Fill input field (clears first) |
-| `Type` | Type text character by character |
-| `Select` | Select dropdown option |
-| `Checkbox` | Check/uncheck checkbox |
-| `Hover` | Hover over element |
-| `Press Key` | Press keyboard key |
-| `Wait for Element` | Wait for element state |
-| `Wait for URL` | Wait for URL to match |
-| `Wait` | Pause for specified time |
-| `Screenshot` | Take screenshot |
-| `Get Text` | Get element text content |
-| `Get Attribute` | Get element attribute |
-| `Assert Visible` | Assert element is visible |
-| `Assert Text Contains` | Assert element text contains value |
-| `Assert Text Equals` | Assert element text equals value |
-| `Assert URL Contains` | Assert URL contains value |
-| `Assert Title Contains` | Assert page title contains value |
-
-### Logic Blocks
-
-| Block | Description |
-|-------|-------------|
-| `Set Variable` | Set a variable value |
-| `Get Variable` | Get a variable value |
-| `If` | Conditional execution |
-| `Compare` | Compare two values |
-| `Repeat` | Repeat blocks N times |
-| `For Each` | Iterate over array |
-| `Try/Catch` | Handle errors |
-| `Log` | Log a message |
-| `Assert` | Assert condition is true |
-| `Fail` | Fail the test |
-
-## CLI Options
+### Options
 
 ```
-Usage: testflow run [options] <patterns...>
-
-Run test files
-
 Options:
-  -H, --headed           Run in headed mode (show browser)
-  -t, --timeout <ms>     Test timeout in milliseconds (default: 30000)
-  -r, --reporter <type>  Reporter: console, json, junit (default: console)
+  -H, --headed           Show browser during execution
+  -t, --timeout <ms>     Step timeout (default: 30000)
+  -r, --reporter <type>  Reporter: console, json, junit
   -o, --output <dir>     Output directory for reports
-  -b, --base-url <url>   Base URL for relative URLs
-  -v, --var <vars...>    Variables in key=value format
-  --fail-fast            Stop on first test failure
-  --filter <pattern>     Only run tests matching pattern
+  -b, --base-url <url>   Base URL for relative navigation
+  -v, --var <vars...>    Variables as key=value
+  --fail-fast            Stop on first failure
+  --filter <pattern>     Only run tests matching name pattern
 ```
 
-## Creating Custom Plugins
-
-Create plugins to add custom blocks:
-
-```typescript
-import { createPlugin, createBlock, registerPlugin } from '@testflow/core';
-
-const myPlugin = createPlugin({
-  name: 'my-plugin',
-  version: '1.0.0',
-  description: 'My custom blocks',
-  blocks: [
-    createBlock({
-      type: 'my_custom_block',
-      category: 'Custom',
-      color: '#9C27B0',
-      tooltip: 'My custom action',
-      inputs: [
-        { name: 'VALUE', type: 'field', fieldType: 'text', required: true },
-      ],
-      previousStatement: true,
-      nextStatement: true,
-      execute: async (params, context) => {
-        context.logger.info(`Custom block executed with: ${params.VALUE}`);
-      },
-    }),
-  ],
-});
-
-registerPlugin(myPlugin);
-```
-
-## Configuration
-
-Create `testflow.config.json` in your project root:
-
-```json
-{
-  "testDir": "./tests",
-  "testMatch": ["**/*.testflow.json"],
-  "timeout": 30000,
-  "headless": true,
-  "reporter": "console",
-  "outputDir": "./testflow-results",
-  "variables": {
-    "baseUrl": "http://localhost:3000"
-  },
-  "plugins": []
-}
-```
-
-## CI/CD Integration
+## CI/CD
 
 ### GitHub Actions
 
 ```yaml
-name: Tests
+name: E2E Tests
 on: [push, pull_request]
 
 jobs:
@@ -296,17 +127,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-
       - run: npm ci
-      - run: npm run build
       - run: npx playwright install chromium
-
-      - run: npm run cli run "tests/**/*.testflow.json" --reporter junit --output results
-
+      - run: npx testkaro run "tests/**/*.tk.json" --reporter junit --output results
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -314,18 +140,14 @@ jobs:
           path: results/
 ```
 
-### GitLab CI
+## Development
 
-```yaml
-test:
-  image: mcr.microsoft.com/playwright:v1.49.0
-  script:
-    - npm ci
-    - npm run build
-    - npm run cli run "tests/**/*.testflow.json" --reporter junit --output results
-  artifacts:
-    reports:
-      junit: results/junit.xml
+```bash
+npm run dev          # Start frontend + backend
+npm run dev:server   # Backend only (WebSocket + proxy)
+npm run dev:client   # Frontend only (Vite)
+npm run build        # Production build
+npm run typecheck    # TypeScript check
 ```
 
 ## License
