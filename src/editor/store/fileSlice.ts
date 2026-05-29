@@ -49,7 +49,27 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
     return file.tests[activeTestIndex] || file.tests[0];
   },
 
-  setFile: (file) => set({ file }),
+  setFile: (file) => set(state => {
+    // Ensure tests exist
+    if (!file.tests || file.tests.length === 0) {
+      file = { ...file, tests: [{ id: crypto.randomUUID(), name: 'Test 1', steps: [] }] };
+    }
+    // Clamp activeTestIndex to valid range
+    const activeTestIndex = Math.min(state.activeTestIndex, file.tests.length - 1);
+
+    // Sync back to modules array so session state stays consistent
+    const anyState = state as any;
+    if (anyState.modules?.length > 0 && anyState.activeModuleIndex != null) {
+      const modules = [...anyState.modules];
+      const mi = anyState.activeModuleIndex;
+      if (modules[mi]) {
+        modules[mi] = { ...modules[mi], tests: file.tests, name: file.name || modules[mi].name };
+        return { file, activeTestIndex, dirty: true, modules } as any;
+      }
+    }
+
+    return { file, activeTestIndex, dirty: true };
+  }),
   setFileId: (fileId) => set({ fileId }),
   setActiveTestIndex: (activeTestIndex) => set({ activeTestIndex }),
   setSavedFiles: (savedFiles) => set({ savedFiles }),
@@ -109,6 +129,19 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
   updateSteps: (steps) => set(state => {
     const tests = [...(state.file.tests || [])];
     tests[state.activeTestIndex] = { ...tests[state.activeTestIndex], steps };
-    return { file: { ...state.file, tests }, dirty: true };
+    const file = { ...state.file, tests };
+
+    // Sync back to modules
+    const anyState = state as any;
+    if (anyState.modules?.length > 0 && anyState.activeModuleIndex != null) {
+      const modules = [...anyState.modules];
+      const mi = anyState.activeModuleIndex;
+      if (modules[mi]) {
+        modules[mi] = { ...modules[mi], tests };
+        return { file, dirty: true, modules } as any;
+      }
+    }
+
+    return { file, dirty: true };
   }),
 });

@@ -40,6 +40,9 @@ export interface SessionSlice {
   addModule: (name: string) => void;
   deleteModule: (index: number) => void;
   renameModule: (index: number, name: string) => void;
+  reorderModules: (fromIndex: number, toIndex: number) => void;
+  reorderTests: (moduleIndex: number, fromIndex: number, toIndex: number) => void;
+  moveTestToModule: (fromModuleIndex: number, testIndex: number, toModuleIndex: number, toTestIndex: number) => void;
 
   /** Switch to a module by index and sync its tests into the file slice. */
   switchModule: (index: number) => void;
@@ -232,6 +235,49 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
   renameModule: (index, name) => set(state => {
     const modules = [...state.modules];
     modules[index] = { ...modules[index], name };
+    return { modules };
+  }),
+
+  reorderModules: (fromIndex, toIndex) => set(state => {
+    const modules = [...state.modules];
+    const [moved] = modules.splice(fromIndex, 1);
+    modules.splice(toIndex, 0, moved);
+    // Update activeModuleIndex to follow the active module
+    let activeModuleIndex = state.activeModuleIndex;
+    if (activeModuleIndex === fromIndex) activeModuleIndex = toIndex;
+    else if (fromIndex < activeModuleIndex && toIndex >= activeModuleIndex) activeModuleIndex--;
+    else if (fromIndex > activeModuleIndex && toIndex <= activeModuleIndex) activeModuleIndex++;
+    return { modules, activeModuleIndex };
+  }),
+
+  reorderTests: (moduleIndex, fromIndex, toIndex) => set(state => {
+    const modules = [...state.modules];
+    const mod = { ...modules[moduleIndex], tests: [...(modules[moduleIndex].tests || [])] };
+    const [moved] = mod.tests.splice(fromIndex, 1);
+    mod.tests.splice(toIndex, 0, moved);
+    modules[moduleIndex] = mod;
+    // If reordering in active module, also sync file slice
+    const store = get() as any;
+    if (moduleIndex === state.activeModuleIndex) {
+      store.setFile?.({ ...store.file, tests: mod.tests });
+    }
+    return { modules };
+  }),
+
+  moveTestToModule: (fromModuleIndex, testIndex, toModuleIndex, toTestIndex) => set(state => {
+    const modules = [...state.modules];
+    const fromMod = { ...modules[fromModuleIndex], tests: [...(modules[fromModuleIndex].tests || [])] };
+    const toMod = fromModuleIndex === toModuleIndex ? fromMod : { ...modules[toModuleIndex], tests: [...(modules[toModuleIndex].tests || [])] };
+    const [moved] = fromMod.tests.splice(testIndex, 1);
+    toMod.tests.splice(toTestIndex, 0, moved);
+    modules[fromModuleIndex] = fromMod;
+    if (fromModuleIndex !== toModuleIndex) modules[toModuleIndex] = toMod;
+    // Sync file slice if active module was affected
+    const store = get() as any;
+    if (state.activeModuleIndex === fromModuleIndex || state.activeModuleIndex === toModuleIndex) {
+      const activeMod = modules[state.activeModuleIndex];
+      store.setFile?.({ ...store.file, tests: activeMod.tests });
+    }
     return { modules };
   }),
 
