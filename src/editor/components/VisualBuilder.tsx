@@ -159,7 +159,7 @@ export function VisualBuilder() {
                         className="hover:underline"
                         onClick={() => {
                           const s = store.getState();
-                          const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
+      const currentSteps = (s.file.tests?.[s.activeTestIndex] || s.file.tests?.[0])?.steps || [];
                           s.updateSteps(currentSteps.filter(st => !s.selectedStepIds.has(st.id)));
                           s.clearSelection();
                         }}

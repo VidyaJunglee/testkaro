@@ -11,32 +11,42 @@ interface Props {
 
 export function JsonEditor({ file, onChange }: Props) {
   const editorRef = useRef<any>(null);
-  const valueRef = useRef(JSON.stringify(file, null, 2));
-  const isLocalEdit = useRef(false);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastPushedJson = useRef<string>('');
+  const tab = useStore(s => s.tab);
 
-  // Update editor when file changes from external source (visual tab edits)
+  // Serialize file to JSON for comparison
+  const fileJson = JSON.stringify(file, null, 2);
+
+  // Sync store → editor when file changes externally (visual edits, module switch, etc.)
   useEffect(() => {
-    if (isLocalEdit.current) {
-      isLocalEdit.current = false;
-      return;
-    }
-    const newValue = JSON.stringify(file, null, 2);
-    if (editorRef.current && newValue !== valueRef.current) {
-      valueRef.current = newValue;
-      const editor = editorRef.current;
-      const model = editor.getModel();
-      if (!model) return;
+    if (!editorRef.current) return;
+    // Only push if the new JSON differs from what we last pushed to the store
+    if (fileJson === lastPushedJson.current) return;
 
-      // Use pushEditOperations to preserve cursor and undo stack
-      const fullRange = model.getFullModelRange();
-      editor.executeEdits('external-sync', [{
-        range: fullRange,
-        text: newValue,
-        forceMoveMarkers: true,
-      }]);
+    const model = editorRef.current.getModel();
+    if (!model) return;
+
+    const currentValue = model.getValue();
+    if (fileJson === currentValue) return;
+
+    // Push the external change into Monaco
+    const fullRange = model.getFullModelRange();
+    editorRef.current.executeEdits('external-sync', [{
+      range: fullRange,
+      text: fileJson,
+      forceMoveMarkers: true,
+    }]);
+  }, [fileJson]);
+
+  // Cancel pending debounce when switching away from JSON tab
+  // This prevents stale JSON from overwriting visual edits
+  useEffect(() => {
+    if (tab !== 'json' && debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+      debounceTimer.current = null;
     }
-  }, [file]);
+  }, [tab]);
 
   const handleBeforeMount: BeforeMount = (monaco) => {
     const schema = getTkSchema();
@@ -98,22 +108,33 @@ export function JsonEditor({ file, onChange }: Props) {
 
   const handleChange = useCallback((value: string | undefined) => {
     if (!value) return;
-    valueRef.current = value;
 
-    // Debounce parse + propagation to avoid thrashing visual tab
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       try {
-        const parsed = JSON.parse(value);
-        isLocalEdit.current = true;
+        const parsed: TestFile = JSON.parse(value);
+        // Ensure steps have IDs so visual builder can track them
+        if (parsed.tests) {
+          for (const test of parsed.tests) {
+            if (!test.id) test.id = crypto.randomUUID();
+            if (test.steps) {
+              for (const step of test.steps) {
+                if (!step.id) step.id = crypto.randomUUID();
+              }
+            } else {
+              test.steps = [];
+            }
+          }
+        }
+        lastPushedJson.current = JSON.stringify(parsed, null, 2);
         onChange(parsed);
       } catch {
-        // Invalid JSON — Monaco shows error inline
+        // Invalid JSON — Monaco shows inline error
       }
-    }, 300);
+    }, 400);
   }, [onChange]);
 
-  // Cleanup debounce on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -133,7 +154,7 @@ export function JsonEditor({ file, onChange }: Props) {
       <div className="flex-1">
         <Editor
           defaultLanguage="json"
-          defaultValue={JSON.stringify(file, null, 2)}
+          defaultValue={fileJson}
           theme={useStore(s => s.darkMode) ? 'vs-dark' : 'light'}
           beforeMount={handleBeforeMount}
           onMount={handleMount}

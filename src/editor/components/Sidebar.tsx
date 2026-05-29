@@ -60,7 +60,7 @@ export function Sidebar() {
 
   const handleStartTestRename = (index: number) => {
     setRenamingTestIndex(index);
-    setTestRenameValue(file.tests[index].name);
+    setTestRenameValue(file.tests?.[index]?.name || '');
   };
 
   const handleConfirmTestRename = () => {
@@ -198,7 +198,7 @@ export function Sidebar() {
                                     <span className="truncate">{t.name}</span>
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[10px] text-text-tertiary">{t.steps.length}</span>
+                                    <span className="text-[10px] text-text-tertiary">{(t.steps || []).length}</span>
                                     {(file.tests || []).length > 1 && (
                                       <InlineConfirm onConfirm={() => store.getState().deleteTest(ti)} message="Delete?">
                                         {({ requestConfirm }) => (
