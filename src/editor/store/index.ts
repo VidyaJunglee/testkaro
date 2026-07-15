@@ -23,10 +23,14 @@ export const useStore = create<AppStore>()(
       ...createEnvSlice(...a),
     }),
     {
-      // Only track file/steps changes for undo/redo
+      // Track file/steps AND module-level state for undo/redo — restoring
+      // modules alongside file also keeps them from diverging on undo
       partialize: (state) => ({
         file: state.file,
         activeTestIndex: state.activeTestIndex,
+        modules: state.modules,
+        activeModuleIndex: state.activeModuleIndex,
+        manifest: state.manifest,
       }),
       limit: 30,
     }
@@ -63,6 +67,7 @@ export const useScreenshots = () => useStore(s => s.screenshots);
 export const useRunHistory = () => useStore(s => s.runHistory);
 export const usePaused = () => useStore(s => s.paused);
 export const useHeaded = () => useStore(s => s.headed);
+export const useBrowserType = () => useStore(s => s.browserType);
 export const useErrorMsg = () => useStore(s => s.errorMsg);
 
 // UI selectors
@@ -101,6 +106,7 @@ export const useFileActions = () => useStore(useShallow(s => ({
   newFile: s.newFile,
   addTest: s.addTest,
   deleteTest: s.deleteTest,
+  setTestTags: s.setTestTags,
   updateSteps: s.updateSteps,
 })));
 
@@ -128,6 +134,7 @@ export const useExecutionActions = () => useStore(useShallow(s => ({
   setPaused: s.setPaused,
   setHeaded: s.setHeaded,
   setRecordVideo: s.setRecordVideo,
+  setBrowserType: s.setBrowserType,
   resetRun: s.resetRun,
 })));
 
@@ -175,6 +182,20 @@ export const useEnvActions = () => useStore(useShallow(s => ({
   setEnvironments: s.setEnvironments,
   resolveVariables: s.resolveVariables,
   getActiveVariables: s.getActiveVariables,
+})));
+
+// Global environment selectors
+export const useGlobalEnvironments = () => useStore(s => s.globalEnvironments);
+export const useActiveGlobalEnvironmentId = () => useStore(s => s.activeGlobalEnvironmentId);
+export const useActiveGlobalEnvironment = () => useStore(s => s.globalEnvironments.find(e => e.id === s.activeGlobalEnvironmentId) || null);
+export const useGlobalEnvActions = () => useStore(useShallow(s => ({
+  setGlobalEnvironments: s.setGlobalEnvironments,
+  setActiveGlobalEnvironment: s.setActiveGlobalEnvironment,
+  addGlobalEnvironment: s.addGlobalEnvironment,
+  deleteGlobalEnvironment: s.deleteGlobalEnvironment,
+  renameGlobalEnvironment: s.renameGlobalEnvironment,
+  setGlobalEnvVariable: s.setGlobalEnvVariable,
+  deleteGlobalEnvVariable: s.deleteGlobalEnvVariable,
 })));
 
 // ─── Re-exports ──────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ const modes: { value: RunMode; label: string; description: string }[] = [
   { value: 'current', label: 'Run Current', description: 'Run active test only' },
   { value: 'module', label: 'Run Module', description: 'Run all tests in active module' },
   { value: 'all', label: 'Run All Tests', description: 'Run all tests sequentially' },
+  { value: 'all-modules', label: 'Run All Modules', description: 'Run every module sequentially' },
 ];
 
 export function RunDropdown({ onRun, disabled }: Props) {
@@ -37,7 +38,7 @@ export function RunDropdown({ onRun, disabled }: Props) {
       <div className="flex items-stretch">
         {/* Main run button */}
         <button
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-l text-xs font-medium bg-accent hover:bg-accent-hover text-white transition-all disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-l text-xs font-medium bg-accent hover:bg-accent-hover text-on-accent transition-all disabled:opacity-50"
           onClick={onRun}
           disabled={disabled}
         >

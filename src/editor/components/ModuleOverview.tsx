@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useStore } from '../store';
 import { TestFile } from '../../schema';
 import {
-  Play, MoreVertical, FileText, CheckCircle2, XCircle, Clock, Plus, Copy, Trash2,
+  Play, MoreVertical, FileText, CheckCircle2, XCircle, Clock, Plus, Copy, Trash2, Tag, X,
 } from 'lucide-react';
 
 /**
@@ -21,7 +21,36 @@ export function ModuleOverview() {
 
   const activeModule = modules[activeModuleIndex] || null;
   const moduleName = activeModule?.name || file.name || 'Tests';
-  const tests = file.tests || [];
+  const allTests = file.tests || [];
+
+  const [activeTagFilter, setActiveTagFilter] = useState<string | null>(null);
+  const [addingTagFor, setAddingTagFor] = useState<number | null>(null);
+  const [tagInput, setTagInput] = useState('');
+
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    allTests.forEach(t => t.tags?.forEach(tag => set.add(tag)));
+    return Array.from(set).sort();
+  }, [allTests]);
+
+  const indexedTests = allTests.map((test, originalIndex) => ({ test, originalIndex }));
+  const tests = activeTagFilter
+    ? indexedTests.filter(({ test }) => test.tags?.includes(activeTagFilter))
+    : indexedTests;
+
+  const addTag = (testIndex: number, tag: string) => {
+    const trimmed = tag.trim();
+    if (!trimmed) return;
+    const test = allTests[testIndex];
+    const current = test.tags || [];
+    if (current.includes(trimmed)) return;
+    store.getState().setTestTags(testIndex, [...current, trimmed]);
+  };
+
+  const removeTag = (testIndex: number, tag: string) => {
+    const test = allTests[testIndex];
+    store.getState().setTestTags(testIndex, (test.tags || []).filter(t => t !== tag));
+  };
 
   const handleOpenTest = (index: number) => {
     store.getState().setActiveTestIndex(index);
@@ -41,7 +70,7 @@ export function ModuleOverview() {
 
   const handleDuplicateTest = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    const test = tests[index];
+    const test = allTests[index];
     if (!test) return;
     const s = store.getState();
     const newTest = {
@@ -50,12 +79,12 @@ export function ModuleOverview() {
       name: `${test.name} (copy)`,
       steps: test.steps.map(step => ({ ...step, id: crypto.randomUUID() })),
     };
-    s.setFile({ ...file, tests: [...tests, newTest] });
+    s.setFile({ ...file, tests: [...allTests, newTest] });
   };
 
   const handleDeleteTest = (index: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (tests.length <= 1) return;
+    if (allTests.length <= 1) return;
     store.getState().deleteTest(index);
   };
 
@@ -86,12 +115,13 @@ export function ModuleOverview() {
                 Tests
               </h1>
               <p className="text-sm text-text-tertiary mt-1">
-                {tests.length} test{tests.length !== 1 ? 's' : ''} in this module
+                {tests.length} test{tests.length !== 1 ? 's' : ''}
+                {activeTagFilter ? ` tagged "${activeTagFilter}"` : ' in this module'}
               </p>
             </div>
             <button
               onClick={handleAddTest}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-on-accent text-sm font-medium hover:bg-accent-hover transition-colors"
             >
               <Plus size={14} />
               Add Test
@@ -99,9 +129,37 @@ export function ModuleOverview() {
           </div>
         </div>
 
+        {/* Tag filter bar */}
+        {allTags.length > 0 && (
+          <div className="flex items-center flex-wrap gap-1.5 mb-4">
+            <Tag size={12} className="text-text-tertiary shrink-0" />
+            {allTags.map(tag => (
+              <button
+                key={tag}
+                onClick={() => setActiveTagFilter(activeTagFilter === tag ? null : tag)}
+                className={`text-[11px] px-2 py-0.5 rounded-full font-medium transition-colors ${
+                  activeTagFilter === tag
+                    ? 'bg-accent text-on-accent'
+                    : 'bg-bg-tertiary text-text-secondary hover:bg-bg-hover'
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+            {activeTagFilter && (
+              <button
+                onClick={() => setActiveTagFilter(null)}
+                className="text-[11px] text-text-tertiary hover:text-text-primary ml-1"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Test Cards Grid */}
         <div className="grid grid-cols-2 gap-4">
-          {tests.map((test, index) => {
+          {tests.map(({ test, originalIndex: index }) => {
             const status = getTestStatus(index);
             return (
               <div
@@ -162,6 +220,49 @@ export function ModuleOverview() {
                         )}
                       </div>
                     )}
+
+                    {/* Tags */}
+                    <div
+                      className="mt-2 flex flex-wrap items-center gap-1"
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {test.tags?.map(tag => (
+                        <span
+                          key={tag}
+                          className="flex items-center gap-1 text-[10px] px-1.5 py-0.5 bg-accent/10 text-accent rounded-full font-medium"
+                        >
+                          {tag}
+                          <button
+                            onClick={() => removeTag(index, tag)}
+                            className="hover:text-danger transition-colors"
+                          >
+                            <X size={9} />
+                          </button>
+                        </span>
+                      ))}
+                      {addingTagFor === index ? (
+                        <input
+                          autoFocus
+                          className="w-20 text-[10px] px-1.5 py-0.5 rounded-full bg-bg-input border border-border-subtle outline-none focus:border-border-active"
+                          value={tagInput}
+                          placeholder="tag name"
+                          onChange={e => setTagInput(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { addTag(index, tagInput); setTagInput(''); setAddingTagFor(null); }
+                            if (e.key === 'Escape') { setTagInput(''); setAddingTagFor(null); }
+                          }}
+                          onBlur={() => { addTag(index, tagInput); setTagInput(''); setAddingTagFor(null); }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => setAddingTagFor(index)}
+                          className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full text-text-tertiary hover:text-text-secondary hover:bg-bg-hover transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <Tag size={9} />
+                          Add tag
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 

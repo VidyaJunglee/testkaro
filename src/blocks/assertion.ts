@@ -130,8 +130,130 @@ const assertCount: BlockDefinition = {
   },
 };
 
+const assertHidden: BlockDefinition = {
+  type: 'assert_hidden',
+  category: 'assertion',
+  label: 'Assert Hidden',
+  description: 'Assert that an element is not visible',
+  color: '#FF9800',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    try {
+      await page.locator(String(params.selector)).waitFor({ state: 'hidden', timeout: 5000 });
+      return { stepId: '', type: 'assert_hidden', status: 'passed', duration: Date.now() - start };
+    } catch (e: any) {
+      return { stepId: '', type: 'assert_hidden', status: 'failed', duration: Date.now() - start, error: e.message };
+    }
+  },
+};
+
+const assertAttribute: BlockDefinition = {
+  type: 'assert_attribute',
+  category: 'assertion',
+  label: 'Assert Attribute',
+  description: 'Assert an element attribute equals or contains a value',
+  color: '#FF9800',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+    { name: 'attribute', label: 'Attribute', type: 'text', required: true, placeholder: 'href' },
+    { name: 'expected', label: 'Expected Value', type: 'text', required: true },
+    { name: 'mode', label: 'Match Mode', type: 'dropdown', default: 'equals', options: [{ label: 'Equals', value: 'equals' }, { label: 'Contains', value: 'contains' }] },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    const attr = await page.locator(String(params.selector)).getAttribute(String(params.attribute));
+    const expected = String(params.expected);
+    const pass = params.mode === 'contains' ? (attr || '').includes(expected) : attr === expected;
+    return { stepId: '', type: 'assert_attribute', status: pass ? 'passed' : 'failed', duration: Date.now() - start, error: pass ? undefined : `Attribute "${params.attribute}": expected "${expected}", got "${attr}"` };
+  },
+};
+
+const assertChecked: BlockDefinition = {
+  type: 'assert_checked',
+  category: 'assertion',
+  label: 'Assert Checked',
+  description: 'Assert a checkbox is checked or unchecked',
+  color: '#FF9800',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+    { name: 'checked', label: 'Expected State', type: 'checkbox', default: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    const actual = await page.locator(String(params.selector)).isChecked();
+    const expected = params.checked !== false;
+    const pass = actual === expected;
+    return { stepId: '', type: 'assert_checked', status: pass ? 'passed' : 'failed', duration: Date.now() - start, error: pass ? undefined : `Checked state: expected ${expected}, got ${actual}` };
+  },
+};
+
+const assertEnabled: BlockDefinition = {
+  type: 'assert_enabled',
+  category: 'assertion',
+  label: 'Assert Enabled',
+  description: 'Assert an element is enabled (not disabled)',
+  color: '#FF9800',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    const isEnabled = await page.locator(String(params.selector)).isEnabled();
+    return { stepId: '', type: 'assert_enabled', status: isEnabled ? 'passed' : 'failed', duration: Date.now() - start, error: isEnabled ? undefined : `Element is disabled: "${params.selector}"` };
+  },
+};
+
+const assertDisabled: BlockDefinition = {
+  type: 'assert_disabled',
+  category: 'assertion',
+  label: 'Assert Disabled',
+  description: 'Assert an element is disabled',
+  color: '#FF9800',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    const isEnabled = await page.locator(String(params.selector)).isEnabled();
+    return { stepId: '', type: 'assert_disabled', status: !isEnabled ? 'passed' : 'failed', duration: Date.now() - start, error: !isEnabled ? undefined : `Element is enabled but expected disabled: "${params.selector}"` };
+  },
+};
+
+const assertCss: BlockDefinition = {
+  type: 'assert_css',
+  category: 'assertion',
+  label: 'Assert CSS',
+  description: 'Assert a computed CSS property value',
+  color: '#FF9800',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+    { name: 'property', label: 'CSS Property', type: 'text', required: true, placeholder: 'color' },
+    { name: 'expected', label: 'Expected (contains)', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    const cssValue = await page.locator(String(params.selector)).evaluate(
+      (el: Element, prop: string) => window.getComputedStyle(el).getPropertyValue(prop),
+      String(params.property)
+    );
+    const pass = cssValue.includes(String(params.expected));
+    return { stepId: '', type: 'assert_css', status: pass ? 'passed' : 'failed', duration: Date.now() - start, error: pass ? undefined : `CSS "${params.property}": expected to contain "${params.expected}", got "${cssValue.trim()}"` };
+  },
+};
+
 // ─── Register ────────────────────────────────────────────────────────────────
 
 export function registerAssertionBlocks(): void {
-  [assertVisible, assertText, assertUrl, assertTitle, assertValue, assertCount].forEach(registerBlock);
+  [assertVisible, assertText, assertUrl, assertTitle, assertValue, assertCount,
+   assertHidden, assertAttribute, assertChecked, assertEnabled, assertDisabled, assertCss,
+  ].forEach(registerBlock);
 }

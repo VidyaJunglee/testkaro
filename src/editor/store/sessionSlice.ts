@@ -3,6 +3,7 @@ import { AppManifest, ModuleFile, TestFile } from '../../schema';
 import { AppEntry, getApp, saveApp, generateAppId } from '../storage/app-registry';
 import { getHandle, saveHandle, removeHandle, verifyPermission } from '../storage/handle-store';
 import { writeAppToDirectory, readAppFromDirectory } from '../storage/filesystem-sync';
+import { toast } from './toast';
 
 // ─── Session Slice ──────────────────────────────────────────────────────────
 // Single source of truth for the currently loaded app session.
@@ -122,6 +123,8 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
             description: mod.description,
             baseUrl: mod.baseUrl,
             tests: mod.tests || [{ id: crypto.randomUUID(), name: 'Test 1', steps: [] }],
+            engine: mod.engine,
+            mobileConfig: mod.mobileConfig,
           });
           store.setFileId?.(appId);
           store.setActiveTestIndex?.(0);
@@ -154,7 +157,7 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
         store.setDirty?.(false);
       }
 
-      // Hydrate environments
+      // Hydrate per-app environments from AppEntry
       const store = get() as any;
       store.setEnvironments?.(app.environments || []);
       store.setActiveEnvironment?.(app.activeEnvironmentId || null);
@@ -186,11 +189,26 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
   setActiveModuleIndex: (index) => set({ activeModuleIndex: index }),
 
   switchModule: (index) => {
-    const state = get();
+    const state = get() as any;
     const mod = state.modules[index];
     if (!mod) return;
 
-    set({ activeModuleIndex: index });
+    // Write the outgoing file back into its module before swapping — any edit
+    // that bypassed the synced fileSlice actions would otherwise be lost.
+    const oldIdx = state.activeModuleIndex;
+    if (oldIdx !== index && state.modules[oldIdx] && state.file) {
+      const modules = [...state.modules];
+      modules[oldIdx] = {
+        ...modules[oldIdx],
+        tests: state.file.tests,
+        name: state.file.name || modules[oldIdx].name,
+        engine: state.file.engine,
+        mobileConfig: state.file.mobileConfig,
+      };
+      set({ modules, activeModuleIndex: index } as any);
+    } else {
+      set({ activeModuleIndex: index });
+    }
 
     // Sync into file slice
     const store = get() as any;
@@ -200,6 +218,8 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
       description: mod.description,
       baseUrl: mod.baseUrl,
       tests: mod.tests,
+      engine: mod.engine,
+      mobileConfig: mod.mobileConfig,
     });
     store.setActiveTestIndex?.(0);
   },
@@ -301,6 +321,8 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
           ...existing.modules[state.activeModuleIndex],
           tests: state.file?.tests || [],
           name: state.file?.name || existing.modules[state.activeModuleIndex].name,
+          engine: state.file?.engine,
+          mobileConfig: state.file?.mobileConfig,
         };
       }
       existing.file = undefined;
@@ -314,6 +336,8 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
           ...updatedModules[state.activeModuleIndex],
           tests: state.file?.tests || [],
           name: state.file?.name || updatedModules[state.activeModuleIndex].name,
+          engine: state.file?.engine,
+          mobileConfig: state.file?.mobileConfig,
         };
         existing.modules = updatedModules;
         existing.manifest = state.manifest || existing.manifest;
@@ -337,7 +361,8 @@ export const createSessionSlice: StateCreator<SessionSlice, [], [], SessionSlice
           await writeAppToDirectory(existing, handle);
         }
       } catch {
-        // Filesystem sync failed silently — data is still in IndexedDB
+        // Data is still safe in IndexedDB — just tell the user the fs mirror is stale.
+        toast.error('Failed to sync changes to linked filesystem folder');
       }
     }
   },

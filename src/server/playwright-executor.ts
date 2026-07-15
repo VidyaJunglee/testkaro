@@ -1,17 +1,30 @@
-import { chromium, Browser, BrowserContext, Page, ConsoleMessage } from 'playwright';
+import { chromium, firefox, webkit, Browser, BrowserContext, Page, ConsoleMessage } from 'playwright';
+import os from 'node:os';
+
+const BROWSER_LAUNCHERS = { chromium, firefox, webkit };
+export type BrowserType = keyof typeof BROWSER_LAUNCHERS;
 
 export interface TestStep {
   id: string;
   type: string;
   params: Record<string, unknown>;
   children?: TestStep[];
+  skip?: boolean;
+  description?: string;
+  timeout?: number;
+  retry?: number;
 }
+
+const CONTAINER_TYPES = new Set(['if', 'repeat', 'for_each', 'try_catch']);
 
 export interface ExecutionConfig {
   headed: boolean;
+  browserType?: BrowserType;
   slowMo?: number;
   viewport?: { width: number; height: number };
   recordVideo?: boolean;
+  videoDir?: string;
+  screenshotOnFailure?: boolean;
 }
 
 export type EventEmitter = (event: ExecutionEvent) => void;
@@ -20,6 +33,10 @@ export interface ExecutionEvent {
   type: 'step-start' | 'step-end' | 'console' | 'network' | 'variable' | 'screenshot' | 'done' | 'browser-ready' | 'error';
   data: any;
 }
+
+// Sentinel thrown when a step fails inside try_catch — unwinds through any
+// nested containers up to the nearest try_catch, which swallows it.
+class CaughtError extends Error {}
 
 export class PlaywrightExecutor {
   private browser: Browser | null = null;
@@ -32,6 +49,9 @@ export class PlaywrightExecutor {
   private emit: EventEmitter;
   private config: ExecutionConfig;
   private networkId = 0;
+  private catchDepth = 0;
+  private lastCaughtError: string | null = null;
+  private results: any[] = [];
   breakpoints: Set<string> = new Set();
 
   constructor(emit: EventEmitter, config: ExecutionConfig) {
@@ -59,9 +79,12 @@ export class PlaywrightExecutor {
   }
 
   async launch(): Promise<void> {
-    this.browser = await chromium.launch({
+    const launcher = BROWSER_LAUNCHERS[this.config.browserType ?? 'chromium'];
+    this.browser = await launcher.launch({
       headless: !this.config.headed,
-      slowMo: this.config.slowMo || 0,
+      timeout: 30_000,
+      // No global slowMo — causes jittery blink on every API call.
+      // Instead, targeted inter-step delays are used in executeSteps().
     });
 
     const contextOptions: any = {
@@ -69,7 +92,7 @@ export class PlaywrightExecutor {
     };
 
     if (this.config.recordVideo) {
-      contextOptions.recordVideo = { dir: '/tmp/testkaro-videos', size: { width: 1280, height: 720 } };
+      contextOptions.recordVideo = { dir: this.config.videoDir || `${os.tmpdir()}/testkaro-videos`, size: { width: 1280, height: 720 } };
     }
 
     this.context = await this.browser.newContext(contextOptions);
@@ -188,12 +211,55 @@ export class PlaywrightExecutor {
     return resolved;
   }
 
-  async executeSteps(steps: TestStep[]): Promise<void> {
-    this.aborted = false;
-    const results: any[] = [];
+  private requireString(params: Record<string, unknown>, key: string, stepType: string): string {
+    const val = params[key];
+    if (val === undefined || val === null || String(val).trim() === '') {
+      throw new Error(`${stepType}: missing required param "${key}"`);
+    }
+    return String(val);
+  }
 
-    for (const step of steps) {
+  // Top-level entry: resets run state, executes all steps, then runs the
+  // done/close epilogue exactly once. Container blocks recurse via
+  // executeStepsInner, which must never touch run-level state.
+  async run(steps: TestStep[]): Promise<void> {
+    this.aborted = false;
+    this.results = [];
+    this.catchDepth = 0;
+    this.lastCaughtError = null;
+
+    try {
+      await this.executeStepsInner(steps);
+    } catch (err) {
+      // CaughtError from a try_catch-less path shouldn't happen; anything else
+      // is a hard executor failure — surface it rather than hanging the client.
+      if (!(err instanceof CaughtError)) {
+        this.emit({ type: 'error', data: { message: (err as Error)?.message || String(err) } });
+      }
+    }
+
+    // Don't auto-close in headed mode — let user inspect final state.
+    // Emit 'done' first; client sends 'stop' when ready to close.
+    if (!this.config.headed) {
+      const videoPath = await this.close();
+      this.emit({ type: 'done', data: { results: this.results, videoPath } });
+    } else {
+      this.emit({ type: 'done', data: { results: this.results, videoPath: undefined } });
+    }
+  }
+
+  private async executeStepsInner(steps: TestStep[]): Promise<void> {
+    const results = this.results;
+
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       if (this.aborted) {
+        this.emit({ type: 'step-end', data: { stepId: step.id, type: step.type, status: 'skipped', duration: 0 } });
+        continue;
+      }
+
+      // Skip flag
+      if (step.skip) {
         this.emit({ type: 'step-end', data: { stepId: step.id, type: step.type, status: 'skipped', duration: 0 } });
         continue;
       }
@@ -209,11 +275,37 @@ export class PlaywrightExecutor {
       }
 
       this.emit({ type: 'step-start', data: { stepId: step.id, type: step.type } });
+
+      // Pre-step delay: lets the UI highlight the step before it fires
+      const preDelay = this.config.slowMo ?? 120;
+      if (preDelay > 0) await new Promise(r => setTimeout(r, preDelay));
+
       const start = Date.now();
 
       try {
         const params = this.resolveParams(step.params);
-        await this.executeStep(step.type, params, step.children);
+        if (step.timeout != null && params.timeout == null) params.timeout = step.timeout;
+
+        // Retry only applies to leaf action steps — retrying a container would
+        // re-run its already-succeeded children and duplicate their side effects.
+        const attempts = !CONTAINER_TYPES.has(step.type) ? 1 + Math.max(0, Number(step.retry) || 0) : 1;
+        let lastErr: unknown;
+        for (let attempt = 1; attempt <= attempts; attempt++) {
+          try {
+            await this.executeStep(step.type, params, step.children);
+            lastErr = undefined;
+            break;
+          } catch (err) {
+            lastErr = err;
+            if (attempt < attempts) {
+              const msg = (err as Error)?.message || String(err);
+              this.emit({ type: 'console', data: { level: 'warn', message: `[TestKaro] Attempt ${attempt}/${attempts} failed for "${step.type}", retrying: ${msg}`, timestamp: Date.now() } });
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+        }
+        if (lastErr) throw lastErr;
+
         const duration = Date.now() - start;
 
         const result = { stepId: step.id, type: step.type, status: 'passed', duration, screenshot: undefined };
@@ -221,13 +313,36 @@ export class PlaywrightExecutor {
         this.emit({ type: 'step-end', data: result });
       } catch (err: any) {
         const duration = Date.now() - start;
+
+        if (err instanceof CaughtError) {
+          // A nested child already recorded its failure — close out this
+          // container step and keep unwinding to the nearest try_catch.
+          const result = { stepId: step.id, type: step.type, status: 'failed', duration, error: this.lastCaughtError };
+          results.push(result);
+          this.emit({ type: 'step-end', data: result });
+          throw err;
+        }
+
+        if (this.catchDepth > 0) {
+          // Inside a try_catch block — record the error, skip the remaining
+          // try children (at any nesting depth), don't abort the run.
+          const message = err.message || String(err);
+          this.lastCaughtError = message;
+          const result = { stepId: step.id, type: step.type, status: 'failed', duration, error: message };
+          results.push(result);
+          this.emit({ type: 'step-end', data: result });
+          throw new CaughtError(message);
+        }
+
         let screenshot: string | undefined;
-        try {
-          if (this.page) {
-            const buf = await this.page.screenshot({ type: 'png' });
-            screenshot = `data:image/png;base64,${buf.toString('base64')}`;
-          }
-        } catch {}
+        if (this.config.screenshotOnFailure !== false) {
+          try {
+            if (this.page) {
+              const buf = await this.page.screenshot({ type: 'png' });
+              screenshot = `data:image/png;base64,${buf.toString('base64')}`;
+            }
+          } catch {}
+        }
 
         const result = {
           stepId: step.id, type: step.type, status: 'failed', duration,
@@ -237,11 +352,6 @@ export class PlaywrightExecutor {
         this.emit({ type: 'step-end', data: result });
         this.aborted = true;
       }
-    }
-
-    const videoPath = await this.close();
-    if (!this.aborted) {
-      this.emit({ type: 'done', data: { results, videoPath } });
     }
   }
 
@@ -254,9 +364,24 @@ export class PlaywrightExecutor {
     switch (type) {
       // === NAVIGATION ===
       case 'navigate': {
-        const url = String(params.url || '');
-        if (!url) throw new Error('Navigate requires a URL');
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
+        const url = this.requireString(params, 'url', type);
+        await page.goto(url, { waitUntil: 'load', timeout });
+        break;
+      }
+      case 'reload': {
+        await page.reload({ waitUntil: 'load', timeout });
+        break;
+      }
+      case 'go_back': {
+        await page.goBack({ timeout });
+        break;
+      }
+      case 'go_forward': {
+        await page.goForward({ timeout });
+        break;
+      }
+      case 'wait_for_url': {
+        await page.waitForURL(String(params.url || ''), { timeout });
         break;
       }
       case 'wait': {
@@ -265,7 +390,7 @@ export class PlaywrightExecutor {
       }
       case 'wait_for_element':
       case 'wait-for-element': {
-        await page.waitForSelector(String(params.selector), { timeout });
+        await page.waitForSelector(this.requireString(params, 'selector', type), { timeout });
         break;
       }
       case 'screenshot': {
@@ -277,82 +402,88 @@ export class PlaywrightExecutor {
 
       // === INTERACTION ===
       case 'click': {
-        const selector = String(params.selector);
-        await page.click(selector, { timeout });
+        await page.click(this.requireString(params, 'selector', type), { timeout });
         break;
       }
       case 'double-click':
       case 'double_click': {
-        await page.dblclick(String(params.selector), { timeout });
+        await page.dblclick(this.requireString(params, 'selector', type), { timeout });
+        break;
+      }
+      case 'right-click':
+      case 'right_click': {
+        await page.click(this.requireString(params, 'selector', type), { timeout, button: 'right' });
         break;
       }
       case 'fill': {
-        await page.fill(String(params.selector), String(params.value || ''), { timeout });
+        await page.fill(this.requireString(params, 'selector', type), String(params.value || ''), { timeout });
         break;
       }
       case 'type': {
-        await page.locator(String(params.selector)).pressSequentially(String(params.text || params.value || ''), { delay: 50 });
+        await page.locator(this.requireString(params, 'selector', type)).pressSequentially(String(params.text || params.value || ''), { delay: 50 });
         break;
       }
       case 'clear': {
-        await page.fill(String(params.selector), '', { timeout });
+        await page.fill(this.requireString(params, 'selector', type), '', { timeout });
         break;
       }
       case 'select': {
-        await page.selectOption(String(params.selector), String(params.value || ''), { timeout });
+        await page.selectOption(this.requireString(params, 'selector', type), String(params.value || ''), { timeout });
         break;
       }
       case 'check': {
+        const checkSel = this.requireString(params, 'selector', type);
         if (params.checked === false) {
-          await page.uncheck(String(params.selector), { timeout });
+          await page.uncheck(checkSel, { timeout });
         } else {
-          await page.check(String(params.selector), { timeout });
+          await page.check(checkSel, { timeout });
         }
         break;
       }
       case 'uncheck': {
-        await page.uncheck(String(params.selector), { timeout });
+        await page.uncheck(this.requireString(params, 'selector', type), { timeout });
         break;
       }
       case 'hover': {
-        await page.hover(String(params.selector), { timeout });
+        await page.hover(this.requireString(params, 'selector', type), { timeout });
         break;
       }
       case 'scroll-to':
       case 'scroll_to': {
-        await page.locator(String(params.selector)).scrollIntoViewIfNeeded({ timeout });
+        await page.locator(this.requireString(params, 'selector', type)).scrollIntoViewIfNeeded({ timeout });
         break;
       }
       case 'press-key':
       case 'press_key': {
+        const key = this.requireString(params, 'key', type);
         const target = params.selector ? page.locator(String(params.selector)) : page;
         if ('press' in target) {
-          await (target as any).press(String(params.key || ''));
+          await (target as any).press(key);
         } else {
-          await page.keyboard.press(String(params.key || ''));
+          await page.keyboard.press(key);
         }
         break;
       }
       case 'upload_file':
       case 'upload-file': {
-        await page.setInputFiles(String(params.selector), String(params.path || ''));
+        await page.setInputFiles(this.requireString(params, 'selector', type), String(params.path || ''));
         break;
       }
 
       // === ASSERTIONS ===
       case 'assert_visible':
       case 'assert-visible': {
-        await page.locator(String(params.selector)).waitFor({ state: 'visible', timeout });
+        await page.locator(this.requireString(params, 'selector', type)).waitFor({ state: 'visible', timeout });
         break;
       }
       case 'assert_hidden':
       case 'assert-hidden': {
-        await page.locator(String(params.selector)).waitFor({ state: 'hidden', timeout });
+        await page.locator(this.requireString(params, 'selector', type)).waitFor({ state: 'hidden', timeout });
         break;
       }
       case 'assert_text':
       case 'assert-text': {
-        const locator = page.locator(String(params.selector));
+        const locator = page.locator(this.requireString(params, 'selector', type));
         const actual = (await locator.textContent({ timeout })) || '';
         const expected = String(params.expected || params.text || '');
         const exact = params.exact === true;
@@ -363,7 +494,7 @@ export class PlaywrightExecutor {
       }
       case 'assert_value':
       case 'assert-value': {
-        const actual = await page.inputValue(String(params.selector), { timeout });
+        const actual = await page.inputValue(this.requireString(params, 'selector', type), { timeout });
         const expected = String(params.expected || params.value || '');
         if (actual !== expected) {
           throw new Error(`Value assertion failed.\nExpected: "${expected}"\nActual: "${actual}"`);
@@ -393,10 +524,56 @@ export class PlaywrightExecutor {
       }
       case 'assert_count':
       case 'assert-count': {
-        const count = await page.locator(String(params.selector)).count();
+        const count = await page.locator(this.requireString(params, 'selector', type)).count();
         const expected = Number(params.count || 0);
         if (count !== expected) {
           throw new Error(`Count assertion failed.\nExpected: ${expected}\nActual: ${count}`);
+        }
+        break;
+      }
+      case 'assert_attribute': {
+        const attrSel = this.requireString(params, 'selector', type);
+        const attr = await page.locator(attrSel).getAttribute(String(params.attribute || ''), { timeout });
+        const expected = String(params.expected || '');
+        const mode = params.mode || 'equals';
+        const pass = mode === 'contains' ? (attr || '').includes(expected) : attr === expected;
+        if (!pass) {
+          throw new Error(`Attribute "${params.attribute}" assertion failed.\nExpected: "${expected}" (${mode})\nActual: "${attr}"`);
+        }
+        break;
+      }
+      case 'assert_checked': {
+        const isChecked = await page.locator(this.requireString(params, 'selector', type)).isChecked({ timeout });
+        const expected = params.checked !== false;
+        if (isChecked !== expected) {
+          throw new Error(`Checked assertion failed.\nExpected: ${expected}\nActual: ${isChecked}`);
+        }
+        break;
+      }
+      case 'assert_enabled': {
+        const enabledSel = this.requireString(params, 'selector', type);
+        const isEnabled = await page.locator(enabledSel).isEnabled({ timeout });
+        if (!isEnabled) {
+          throw new Error(`Element is disabled but expected to be enabled: "${enabledSel}"`);
+        }
+        break;
+      }
+      case 'assert_disabled': {
+        const disabledSel = this.requireString(params, 'selector', type);
+        const isEnabled2 = await page.locator(disabledSel).isEnabled({ timeout });
+        if (isEnabled2) {
+          throw new Error(`Element is enabled but expected to be disabled: "${disabledSel}"`);
+        }
+        break;
+      }
+      case 'assert_css': {
+        const cssValue = await page.locator(this.requireString(params, 'selector', type)).evaluate(
+          (el, prop) => window.getComputedStyle(el).getPropertyValue(prop),
+          String(params.property || '')
+        );
+        const expected = String(params.expected || '');
+        if (!cssValue.includes(expected)) {
+          throw new Error(`CSS property "${params.property}" assertion failed.\nExpected to contain: "${expected}"\nActual: "${cssValue.trim()}"`);
         }
         break;
       }
@@ -404,19 +581,19 @@ export class PlaywrightExecutor {
       // === DATA EXTRACTION ===
       case 'get_text':
       case 'extract-text': {
-        const text = await page.locator(String(params.selector)).textContent({ timeout }) || '';
+        const text = await page.locator(this.requireString(params, 'selector', type)).textContent({ timeout }) || '';
         this.setVar(String(params.saveAs || params.variable || 'extractedText'), text.trim());
         break;
       }
       case 'get_attribute':
       case 'extract-attribute': {
-        const attr = await page.locator(String(params.selector)).getAttribute(String(params.attribute || ''), { timeout });
+        const attr = await page.locator(this.requireString(params, 'selector', type)).getAttribute(String(params.attribute || ''), { timeout });
         this.setVar(String(params.saveAs || params.variable || 'extractedAttr'), attr || '');
         break;
       }
       case 'get_input_value':
       case 'extract-value': {
-        const val = await page.inputValue(String(params.selector), { timeout });
+        const val = await page.inputValue(this.requireString(params, 'selector', type), { timeout });
         this.setVar(String(params.saveAs || params.variable || 'extractedValue'), val);
         break;
       }
@@ -464,7 +641,7 @@ export class PlaywrightExecutor {
           }
         }
         if (condResult && children && children.length > 0) {
-          await this.executeSteps(children);
+          await this.executeStepsInner(children);
         }
         break;
       }
@@ -473,10 +650,61 @@ export class PlaywrightExecutor {
         if (children && children.length > 0) {
           for (let i = 0; i < times; i++) {
             this.setVar('__iteration', i);
-            await this.executeSteps(children);
+            await this.executeStepsInner(children);
             if (this.aborted) break;
           }
         }
+        break;
+      }
+      case 'for_each': {
+        let items: unknown[] = [];
+        if (params.items) {
+          try {
+            items = JSON.parse(String(params.items));
+          } catch (e: any) {
+            throw new Error(`for_each: "items" is not valid JSON — ${e.message}`);
+          }
+        } else if (params.variable) {
+          const raw = this.variables.get(String(params.variable));
+          if (Array.isArray(raw)) items = raw;
+          else {
+            try {
+              items = JSON.parse(String(raw ?? '[]'));
+            } catch {
+              throw new Error(`for_each: variable "${params.variable}" does not contain a JSON array`);
+            }
+          }
+        }
+        if (!Array.isArray(items)) {
+          throw new Error('for_each: resolved items is not an array');
+        }
+        if (children && children.length > 0) {
+          for (let i = 0; i < items.length; i++) {
+            this.setVar('__index', i);
+            this.setVar('__item', typeof items[i] === 'object' ? JSON.stringify(items[i]) : String(items[i]));
+            await this.executeStepsInner(children);
+            if (this.aborted) break;
+          }
+        }
+        break;
+      }
+      case 'try_catch': {
+        this.catchDepth++;
+        this.lastCaughtError = null;
+        try {
+          if (children && children.length > 0) {
+            await this.executeStepsInner(children);
+          }
+        } catch (err) {
+          if (!(err instanceof CaughtError)) throw err;
+          // Failure already recorded at the failing step — swallow and continue the run.
+        } finally {
+          this.catchDepth--;
+        }
+        if (this.lastCaughtError) {
+          this.setVar('__error', this.lastCaughtError);
+        }
+        this.lastCaughtError = null;
         break;
       }
 
@@ -486,8 +714,15 @@ export class PlaywrightExecutor {
       case 'api_put':
       case 'api_delete': {
         const method = type.replace('api_', '').toUpperCase();
-        const url = String(params.url || '');
-        const headers = params.headers ? JSON.parse(String(params.headers)) : {};
+        const url = this.requireString(params, 'url', type);
+        let headers = {};
+        if (params.headers) {
+          try {
+            headers = JSON.parse(String(params.headers));
+          } catch (e: any) {
+            throw new Error(`${type}: "headers" is not valid JSON — ${e.message}`);
+          }
+        }
         const body = params.body ? String(params.body) : undefined;
 
         const response = await page.evaluate(async ({ url, method, headers, body }) => {

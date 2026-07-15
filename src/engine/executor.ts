@@ -21,8 +21,11 @@ function resolveParams(params: Record<string, unknown>, variables: Map<string, u
 
 // ─── Executor ────────────────────────────────────────────────────────────────
 
+export type BrowserType = 'chromium' | 'firefox' | 'webkit';
+
 export interface ExecutorOptions {
   headless?: boolean;
+  browserType?: BrowserType;
   baseUrl?: string;
   timeout?: number;
   variables?: Record<string, unknown>;
@@ -34,8 +37,8 @@ export async function executeTestFile(file: TestFile, options: ExecutorOptions =
   registerAllBlocks();
 
   // Launch browser
-  const { chromium } = await import('playwright');
-  const browser = await chromium.launch({ headless: options.headless ?? true });
+  const playwright = await import('playwright');
+  const browser = await playwright[options.browserType ?? 'chromium'].launch({ headless: options.headless ?? true });
   const context = await browser.newContext();
   const page = await context.newPage();
 

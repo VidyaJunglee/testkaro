@@ -38,10 +38,20 @@ export function AppLoader({ route, children }: Props) {
 
   if (loadState === 'loading') {
     return (
-      <div className="h-screen bg-bg-primary flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <Loader2 size={24} className="text-accent animate-spin" />
-          <span className="text-sm text-text-secondary">Loading app...</span>
+      <div className="flex flex-col h-screen bg-bg-primary">
+        {/* Skeleton TopBar — same height as real one to prevent layout jump */}
+        <div className="flex items-center h-14 px-4 bg-bg-secondary border-b border-border shrink-0 gap-3">
+          <div className="w-7 h-7 bg-accent rounded-md shrink-0" />
+          <div className="w-20 h-3.5 bg-bg-tertiary rounded" />
+          <div className="w-px h-6 bg-border" />
+          <div className="w-32 h-3 bg-bg-tertiary rounded" />
+          <div className="flex-1" />
+          <div className="w-20 h-6 bg-bg-tertiary rounded-lg" />
+          <div className="w-16 h-7 bg-accent/20 rounded-lg" />
+        </div>
+        <div className="flex-1 flex items-center justify-center gap-3">
+          <Loader2 size={18} className="text-accent animate-spin" />
+          <span className="text-sm text-text-secondary">Loading…</span>
         </div>
       </div>
     );
@@ -65,7 +75,7 @@ export function AppLoader({ route, children }: Props) {
           </div>
           <button
             onClick={() => navigateToDashboard()}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-on-accent text-sm font-medium hover:bg-accent/90 transition-colors"
           >
             <ArrowLeft size={14} />
             Back to Dashboard

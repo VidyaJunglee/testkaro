@@ -1,14 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { useStore, useSessionActions } from '../store';
+import { useStore, useSessionActions, useGlobalEnvironments, useGlobalEnvActions } from '../store';
 import { listApps, AppSummary, createModularApp, saveApp, deleteApp } from '../storage/app-registry';
-import { getGlobalEnvironments, saveGlobalEnvironment, deleteGlobalEnvironment } from '../storage/global-env-store';
-import { navigateToApp } from '../router';
-import { InlineConfirm } from './InlineConfirm';
+import { getGlobalEnvironments, saveGlobalEnvironment, saveAllGlobalEnvironments, deleteGlobalEnvironment } from '../storage/global-env-store';
+import { navigateToApp, navigateToDashboard } from '../router';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { toast } from '../store/toast';
+import { ConfirmModal } from './ConfirmModal';
 import { Environment } from '../../schema';
 import {
-  Layers, Plus, Clock, FileText, Play,
+  Layers, Plus, FileText,
   Package, Moon, Sun, Trash2,
-  Globe, Settings,
+  Globe, Settings, Upload, Download,
 } from 'lucide-react';
 
 type DashboardTab = 'projects' | 'variables' | 'settings';
@@ -39,6 +41,8 @@ export function Dashboard() {
 
   const handleDeleteApp = async (id: string) => {
     await deleteApp(id);
+    // Ensure we're on the dashboard route (not a stale app route)
+    navigateToDashboard();
     await loadApps();
   };
 
@@ -49,9 +53,9 @@ export function Dashboard() {
   return (
     <div className="h-screen bg-bg-primary flex">
       {/* Navigation Rail */}
-      <nav className="w-16 bg-bg-secondary border-r border-border flex flex-col items-center py-4 gap-1 shrink-0">
-        <div className="w-8 h-8 bg-gradient-to-br from-accent to-blue-700 rounded-md flex items-center justify-center mb-6">
-          <Layers size={14} className="text-white" />
+      <nav className="w-16 bg-bg-secondary border-r border-border flex flex-col items-center py-4 gap-1 shrink-0 glass-panel">
+        <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center mb-6">
+          <Layers size={14} className="text-on-accent" />
         </div>
 
         <NavRailButton
@@ -62,9 +66,9 @@ export function Dashboard() {
         />
         <NavRailButton
           icon={<Globe size={18} />}
-          label="Variables"
-          active={activeTab === 'variables'}
-          onClick={() => setActiveTab('variables')}
+          label="Env"
+          active={false}
+          onClick={() => useStore.getState().setEnvDrawerOpen(true)}
         />
         <NavRailButton
           icon={<Settings size={18} />}
@@ -87,7 +91,7 @@ export function Dashboard() {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="flex items-center justify-between h-14 px-6 border-b border-border bg-bg-secondary shrink-0">
+        <header className="flex items-center justify-between h-14 px-6 border-b border-border bg-bg-secondary shrink-0 glass-panel">
           <div className="flex items-center gap-2.5">
             <span className="text-base font-bold text-text-primary tracking-tight">TestKaro</span>
             <span className="text-xs text-text-tertiary ml-2">v3.0</span>
@@ -153,8 +157,32 @@ function ProjectsTab({ apps, loading, onCreateApp, onOpenApp, onDeleteApp, onImp
   onCreateApp: () => void; onOpenApp: (app: AppSummary) => void;
   onDeleteApp: (id: string) => void; onImport: () => void;
 }) {
+  const [pendingDelete, setPendingDelete] = useState<AppSummary | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    await onDeleteApp(pendingDelete.id);
+    setDeleting(false);
+    setPendingDelete(null);
+  };
+
   return (
     <div className="max-w-4xl mx-auto px-6 py-8">
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        open={!!pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onConfirm={handleConfirmDelete}
+        title={`Delete "${pendingDelete?.name || ''}"?`}
+        description="This will permanently delete the app and all its modules, tests, and steps. This action cannot be undone."
+        confirmLabel="Delete App"
+        cancelLabel="Cancel"
+        variant="danger"
+        loading={deleting}
+      />
+
       {/* Header row */}
       <div className="flex items-center justify-between mb-8">
         <div>
@@ -165,7 +193,7 @@ function ProjectsTab({ apps, loading, onCreateApp, onOpenApp, onDeleteApp, onImp
         </div>
         <button
           onClick={onCreateApp}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent-hover transition-colors"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent text-on-accent text-sm font-medium hover:bg-accent-hover transition-colors"
         >
           <Plus size={14} />
           New App
@@ -182,7 +210,7 @@ function ProjectsTab({ apps, loading, onCreateApp, onOpenApp, onDeleteApp, onImp
           <p className="text-xs mt-1 mb-5">Create your first app to start writing tests.</p>
           <button
             onClick={onCreateApp}
-            className="px-4 py-2 bg-accent text-white text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors"
+            className="px-4 py-2 bg-accent text-on-accent text-xs font-medium rounded-lg hover:bg-accent/90 transition-colors"
           >
             Create App
           </button>
@@ -237,16 +265,12 @@ function ProjectsTab({ apps, loading, onCreateApp, onOpenApp, onDeleteApp, onImp
                 </span>
 
                 {/* Delete */}
-                <InlineConfirm onConfirm={() => onDeleteApp(app.id)} message="Delete?">
-                  {({ requestConfirm }) => (
-                    <button
-                      className="w-7 h-7 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-danger hover:bg-danger/10 transition-all"
-                      onClick={e => { e.stopPropagation(); requestConfirm(); }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  )}
-                </InlineConfirm>
+                <button
+                  className="w-7 h-7 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-danger hover:bg-danger/10 transition-all"
+                  onClick={e => { e.stopPropagation(); setPendingDelete(app); }}
+                >
+                  <Trash2 size={13} />
+                </button>
               </div>
             ))}
           </div>
@@ -256,86 +280,140 @@ function ProjectsTab({ apps, loading, onCreateApp, onOpenApp, onDeleteApp, onImp
   );
 }
 
-// ─── Variables Tab (Global Environments) ─────────────────────────────────────
+// ─── Environments Tab (Global Environments) ──────────────────────────────────
 
 function VariablesTab() {
-  const [envs, setEnvs] = useState<Environment[]>([]);
+  // Read from Zustand store (always in sync with editor) — fall back to IndexedDB load when store is empty
+  const storeEnvs = useGlobalEnvironments();
+  const { setGlobalEnvironments, addGlobalEnvironment, deleteGlobalEnvironment: deleteGlobalEnvStore,
+    setGlobalEnvVariable, deleteGlobalEnvVariable } = useGlobalEnvActions();
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
   const [newVarKey, setNewVarKey] = useState('');
   const [newVarValue, setNewVarValue] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [bootstrapped, setBootstrapped] = useState(storeEnvs.length > 0);
 
-  const loadEnvs = async () => {
-    const list = await getGlobalEnvironments();
-    setEnvs(list);
-    if (list.length > 0 && !selectedId) setSelectedId(list[0].id);
-    setLoading(false);
-  };
+  // If Zustand store is empty (e.g. direct Dashboard visit without editor), hydrate from IndexedDB
+  useEffect(() => {
+    if (storeEnvs.length > 0) { setBootstrapped(true); return; }
+    getGlobalEnvironments().then(list => {
+      if (list.length > 0) setGlobalEnvironments(list);
+      setBootstrapped(true);
+    }).catch(() => setBootstrapped(true));
+  }, []);
 
-  useEffect(() => { loadEnvs(); }, []);
+  // Auto-select first env
+  useEffect(() => {
+    if (!selectedId && storeEnvs.length > 0) setSelectedId(storeEnvs[0].id);
+  }, [storeEnvs]);
 
-  const selectedEnv = envs.find(e => e.id === selectedId) || null;
+  const selectedEnv = storeEnvs.find(e => e.id === selectedId) || null;
 
-  const handleAddEnv = async () => {
+  const handleAddEnv = () => {
     const name = newName.trim();
     if (!name) return;
-    const env: Environment = { id: crypto.randomUUID(), name, variables: {} };
-    await saveGlobalEnvironment(env);
+    const env = addGlobalEnvironment(name);
+    saveAllGlobalEnvironments(useStore.getState().globalEnvironments).catch(() => {});
     setNewName('');
-    await loadEnvs();
     setSelectedId(env.id);
   };
 
-  const handleDeleteEnv = async (id: string) => {
-    await deleteGlobalEnvironment(id);
-    if (selectedId === id) setSelectedId(null);
-    await loadEnvs();
+  const handleDeleteEnv = (id: string) => {
+    deleteGlobalEnvStore(id);
+    deleteGlobalEnvironment(id).catch(() => {});
+    if (selectedId === id) setSelectedId(storeEnvs.find(e => e.id !== id)?.id || null);
   };
 
-  const handleSetVar = async (key: string, value: string) => {
+  const handleSetVar = (key: string, value: string) => {
     if (!selectedEnv) return;
+    setGlobalEnvVariable(selectedEnv.id, key, value);
     const updated = { ...selectedEnv, variables: { ...selectedEnv.variables, [key]: value } };
-    await saveGlobalEnvironment(updated);
-    await loadEnvs();
+    saveGlobalEnvironment(updated).catch(() => {});
   };
 
-  const handleDeleteVar = async (key: string) => {
+  const handleDeleteVar = (key: string) => {
     if (!selectedEnv) return;
+    deleteGlobalEnvVariable(selectedEnv.id, key);
     const vars = { ...selectedEnv.variables };
     delete vars[key];
-    const updated = { ...selectedEnv, variables: vars };
-    await saveGlobalEnvironment(updated);
-    await loadEnvs();
+    saveGlobalEnvironment({ ...selectedEnv, variables: vars }).catch(() => {});
   };
 
-  const handleAddVar = async () => {
-    if (!selectedId || !newVarKey.trim()) return;
-    await handleSetVar(newVarKey.trim(), newVarValue);
+  const handleAddVar = () => {
+    if (!newVarKey.trim() || !selectedEnv) return;
+    handleSetVar(newVarKey.trim(), newVarValue);
     setNewVarKey('');
     setNewVarValue('');
   };
 
+  const handleExport = () => {
+    const json = JSON.stringify(storeEnvs, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'testkaro-environments.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported: Environment[] = JSON.parse(text);
+      const merged = [...storeEnvs];
+      for (const env of imported) {
+        const withId = { ...env, id: env.id || crypto.randomUUID() };
+        if (!merged.find(x => x.id === withId.id)) merged.push(withId);
+        await saveGlobalEnvironment(withId);
+      }
+      setGlobalEnvironments(merged);
+    } catch {
+      alert('Failed to import: invalid JSON format');
+    }
+    e.target.value = '';
+  };
+
   return (
     <div className="max-w-5xl mx-auto px-6 py-10">
-      <div className="mb-8">
-        <h1 className="text-[28px] font-bold text-text-primary mb-2">Global Variables</h1>
-        <p className="text-sm text-text-secondary">
-          Manage environment variables shared across all apps. App-level variables override these.
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="text-[28px] font-bold text-text-primary mb-2">Environments</h1>
+          <p className="text-sm text-text-secondary">
+            Global environments shared with the editor. Type <code className="px-1 py-0.5 bg-bg-hover rounded text-[11px] font-mono">@key</code> in any test field to insert a variable.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary hover:bg-bg-hover border border-border cursor-pointer transition-all">
+            <Upload size={13} />
+            Import
+            <input type="file" accept=".json" className="hidden" onChange={handleImport} />
+          </label>
+          <button
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-text-secondary hover:bg-bg-hover border border-border transition-all disabled:opacity-40"
+            onClick={handleExport}
+            disabled={storeEnvs.length === 0}
+          >
+            <Download size={13} />
+            Export
+          </button>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="text-xs text-text-tertiary">Loading...</div>
+      {!bootstrapped ? (
+        <div className="text-xs text-text-tertiary">Loading…</div>
       ) : (
         <div className="flex gap-6">
           {/* Env list */}
           <div className="w-56 shrink-0">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-xs font-semibold text-text-secondary uppercase">Environments</h3>
-            </div>
+            <h3 className="text-xs font-semibold text-text-secondary uppercase mb-3">
+              {storeEnvs.length} Environment{storeEnvs.length !== 1 ? 's' : ''}
+            </h3>
             <div className="space-y-1 mb-3">
-              {envs.map(env => (
+              {storeEnvs.map(env => (
                 <div
                   key={env.id}
                   className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all ${
@@ -345,27 +423,30 @@ function VariablesTab() {
                   }`}
                   onClick={() => setSelectedId(env.id)}
                 >
-                  <Globe size={12} />
+                  <Globe size={12} className="shrink-0" />
                   <span className="text-sm flex-1 truncate">{env.name}</span>
-                  <span className="text-[10px] text-text-tertiary">{Object.keys(env.variables).length}</span>
+                  <span className="text-[10px] text-text-tertiary tabular-nums">{Object.keys(env.variables).length}</span>
                   <button
-                    className="p-0.5 opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-danger"
+                    className="p-0.5 opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-danger transition-opacity"
                     onClick={e => { e.stopPropagation(); handleDeleteEnv(env.id); }}
                   >
                     <Trash2 size={10} />
                   </button>
                 </div>
               ))}
+              {storeEnvs.length === 0 && (
+                <p className="text-xs text-text-tertiary italic px-1 py-2">No environments yet</p>
+              )}
             </div>
             <div className="flex items-center gap-1">
               <input
-                className="flex-1 bg-bg-input border border-border-subtle rounded px-2 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none"
+                className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent/40 transition-colors"
                 value={newName}
                 onChange={e => setNewName(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') handleAddEnv(); }}
-                placeholder="New environment..."
+                placeholder="New environment…"
               />
-              <button onClick={handleAddEnv} className="p-1.5 rounded hover:bg-bg-hover text-text-tertiary hover:text-accent">
+              <button onClick={handleAddEnv} className="p-1.5 rounded-lg hover:bg-bg-hover text-text-tertiary hover:text-accent transition-all">
                 <Plus size={14} />
               </button>
             </div>
@@ -379,7 +460,7 @@ function VariablesTab() {
                   <Globe size={13} className="text-accent" />
                   <span className="text-sm font-medium text-text-primary">{selectedEnv.name}</span>
                   <span className="text-[10px] text-text-tertiary ml-auto">
-                    {Object.keys(selectedEnv.variables).length} variables
+                    {Object.keys(selectedEnv.variables).length} var{Object.keys(selectedEnv.variables).length !== 1 ? 's' : ''}
                   </span>
                 </div>
 
@@ -388,9 +469,12 @@ function VariablesTab() {
                     <div className="space-y-2 mb-4">
                       {Object.entries(selectedEnv.variables).map(([key, value]) => (
                         <div key={key} className="flex items-center gap-2 group">
-                          <code className="text-xs text-accent bg-accent/5 px-2 py-1 rounded min-w-[100px] font-mono">{key}</code>
+                          <div className="flex items-center gap-1 bg-bg-tertiary border border-border-subtle rounded-lg px-2 py-1.5 min-w-[112px]">
+                            <span className="text-[10px] text-accent/40 font-mono select-none">@</span>
+                            <code className="text-xs text-accent font-mono flex-1 truncate">{key}</code>
+                          </div>
                           <input
-                            className="flex-1 bg-bg-input border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-border-active"
+                            className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-border-active transition-colors"
                             value={String(value)}
                             onChange={e => handleSetVar(key, e.target.value)}
                           />
@@ -404,33 +488,41 @@ function VariablesTab() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-text-tertiary italic mb-4">No variables defined yet</p>
+                    <p className="text-xs text-text-tertiary italic mb-4">No variables yet. Add one below.</p>
                   )}
 
                   {/* Add variable */}
                   <div className="flex items-center gap-2 pt-3 border-t border-border">
                     <input
-                      className="w-32 bg-bg-input border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none"
+                      className="w-32 bg-bg-input border border-border-subtle rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-active transition-colors"
                       value={newVarKey}
                       onChange={e => setNewVarKey(e.target.value)}
-                      placeholder="Key"
+                      onKeyDown={e => { if (e.key === 'Enter') handleAddVar(); }}
+                      placeholder="KEY"
                     />
                     <input
-                      className="flex-1 bg-bg-input border border-border-subtle rounded px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none"
+                      className="flex-1 bg-bg-input border border-border-subtle rounded-lg px-2.5 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-active transition-colors"
                       value={newVarValue}
                       onChange={e => setNewVarValue(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') handleAddVar(); }}
-                      placeholder="Value"
+                      placeholder="value"
                     />
-                    <button onClick={handleAddVar} className="px-3 py-1.5 rounded bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors">
+                    <button
+                      onClick={handleAddVar}
+                      disabled={!newVarKey.trim()}
+                      className="px-3 py-1.5 rounded-lg bg-accent/10 text-accent text-xs font-medium hover:bg-accent/20 transition-colors disabled:opacity-40"
+                    >
                       Add
                     </button>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center justify-center h-48 text-xs text-text-tertiary border border-dashed border-border rounded-xl">
-                Select or create an environment
+              <div className="flex flex-col items-center justify-center h-48 text-center gap-2 border border-dashed border-border rounded-xl">
+                <Globe size={20} className="text-text-tertiary" />
+                <p className="text-xs text-text-tertiary">
+                  {storeEnvs.length === 0 ? 'Create your first environment on the left' : 'Select an environment'}
+                </p>
               </div>
             )}
           </div>
@@ -442,19 +534,189 @@ function VariablesTab() {
 
 // ─── Settings Tab ────────────────────────────────────────────────────────────
 
+const SETTINGS_KEY = 'testkaro-settings';
+
+interface TKSettings {
+  defaultTimeout: number;
+  screenshotOnFailure: boolean;
+  interStepDelay: number;
+  videoDir: string;
+  defaultHeaded: boolean;
+}
+
+function loadSettings(): TKSettings {
+  try {
+    return { ...defaultSettings(), ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') };
+  } catch {
+    return defaultSettings();
+  }
+}
+
+function defaultSettings(): TKSettings {
+  return {
+    defaultTimeout: 10000,
+    screenshotOnFailure: true,
+    interStepDelay: 120,
+    videoDir: '/tmp/testkaro-videos',
+    defaultHeaded: true,
+  };
+}
+
+export function saveSettings(s: TKSettings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
 function SettingsTab() {
+  const [settings, setSettings] = useState<TKSettings>(loadSettings);
+
+  const update = <K extends keyof TKSettings>(key: K, value: TKSettings[K]) => {
+    const next = { ...settings, [key]: value };
+    setSettings(next);
+    saveSettings(next);
+  };
+
   return (
-    <div className="max-w-5xl mx-auto px-6 py-10">
+    <div className="max-w-2xl mx-auto px-6 py-10">
       <div className="mb-8">
         <h1 className="text-[28px] font-bold text-text-primary mb-2">Settings</h1>
-        <p className="text-sm text-text-secondary">
-          Configure TestKaro preferences.
-        </p>
+        <p className="text-sm text-text-secondary">Configure TestKaro execution preferences.</p>
       </div>
-      <div className="text-xs text-text-tertiary border border-dashed border-border rounded-xl p-8 text-center">
-        Settings panel coming soon.
+
+      <div className="border border-border rounded-xl overflow-hidden divide-y divide-border">
+        {/* defaultTimeout */}
+        <SettingRow
+          label="Default Timeout"
+          description="Maximum time per step in milliseconds"
+        >
+          <input
+            type="number"
+            className="w-28 bg-bg-input border border-border-subtle rounded px-2.5 py-1.5 text-sm text-text-primary outline-none focus:border-border-active"
+            value={settings.defaultTimeout}
+            onChange={e => update('defaultTimeout', Number(e.target.value))}
+          />
+        </SettingRow>
+
+        {/* screenshotOnFailure */}
+        <SettingRow
+          label="Screenshot on Failure"
+          description="Automatically capture a screenshot when a step fails"
+        >
+          <Toggle
+            checked={settings.screenshotOnFailure}
+            onChange={v => update('screenshotOnFailure', v)}
+          />
+        </SettingRow>
+
+        {/* defaultHeaded */}
+        <SettingRow
+          label="Headed Mode by Default"
+          description="Open a visible browser window when running tests"
+        >
+          <Toggle
+            checked={settings.defaultHeaded}
+            onChange={v => update('defaultHeaded', v)}
+          />
+        </SettingRow>
+
+        {/* interStepDelay */}
+        <SettingRow
+          label="Pre-Step Delay"
+          description="Pause before each step fires so you can see it highlighted (ms)"
+        >
+          <input
+            type="number"
+            className="w-28 bg-bg-input border border-border-subtle rounded px-2.5 py-1.5 text-sm text-text-primary outline-none focus:border-border-active"
+            value={settings.interStepDelay}
+            onChange={e => update('interStepDelay', Number(e.target.value))}
+          />
+        </SettingRow>
+
+        {/* videoDir */}
+        <SettingRow
+          label="Video Output Directory"
+          description="Where to save recorded test videos"
+        >
+          <input
+            type="text"
+            className="w-64 bg-bg-input border border-border-subtle rounded px-2.5 py-1.5 text-sm text-text-primary outline-none focus:border-border-active font-mono text-xs"
+            value={settings.videoDir}
+            onChange={e => update('videoDir', e.target.value)}
+          />
+        </SettingRow>
+      </div>
+
+      <div className="mt-4 flex items-center gap-4">
+        <button
+          className="text-xs text-text-tertiary hover:text-danger transition-colors"
+          onClick={() => { const d = defaultSettings(); setSettings(d); saveSettings(d); }}
+        >
+          Reset to defaults
+        </button>
+        <span className="text-border">|</span>
+        <button
+          className="text-xs text-text-tertiary hover:text-text-primary transition-colors"
+          onClick={() => {
+            const blob = new Blob([JSON.stringify(settings, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'testkaro-settings.json';
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+        >
+          Export settings
+        </button>
+        <label className="text-xs text-text-tertiary hover:text-text-primary transition-colors cursor-pointer">
+          Import settings
+          <input
+            type="file"
+            accept="application/json"
+            className="hidden"
+            onChange={e => {
+              const file = e.target.files?.[0];
+              e.target.value = '';
+              if (!file) return;
+              file.text().then(text => {
+                try {
+                  const parsed = { ...defaultSettings(), ...JSON.parse(text) };
+                  setSettings(parsed);
+                  saveSettings(parsed);
+                  toast.success('Settings imported');
+                } catch {
+                  toast.error('Invalid settings file');
+                }
+              });
+            }}
+          />
+        </label>
       </div>
     </div>
+  );
+}
+
+function SettingRow({ label, description, children }: { label: string; description: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-4 px-5 py-4 bg-bg-card">
+      <div>
+        <div className="text-sm font-medium text-text-primary">{label}</div>
+        <div className="text-xs text-text-tertiary mt-0.5">{description}</div>
+      </div>
+      <div className="shrink-0">{children}</div>
+    </div>
+  );
+}
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? 'bg-accent' : 'bg-border'}`}
+    >
+      <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-4' : 'translate-x-1'}`} />
+    </button>
   );
 }
 
@@ -465,6 +727,7 @@ function CreateAppModal({ onCreateModular, onClose }: {
   onClose: () => void;
 }) {
   const [name, setName] = useState('');
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -473,8 +736,8 @@ function CreateAppModal({ onCreateModular, onClose }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-bg-secondary border border-border rounded-xl shadow-xl w-full max-w-sm p-6">
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
+      <div ref={trapRef} className="relative bg-bg-elevated border border-border rounded-xl w-full max-w-sm p-6 shadow-2xl animate-glass-reveal">
         <h2 className="text-lg font-semibold text-text-primary mb-4">Create New App</h2>
         <form onSubmit={handleSubmit}>
           <div className="mb-6">
@@ -497,7 +760,7 @@ function CreateAppModal({ onCreateModular, onClose }: {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 rounded-lg bg-accent text-white text-sm font-medium hover:bg-accent/90 transition-colors"
+              className="px-4 py-2 rounded-lg bg-accent text-on-accent text-sm font-medium hover:bg-accent/90 transition-colors"
             >
               Create
             </button>

@@ -29,6 +29,31 @@ export function getTkSchema() {
     },
   }));
 
+  // Build defaultSnippets for step items — Monaco's JSON service uses these for autocomplete
+  const stepSnippets = BLOCKS.map(block => {
+    const params: Record<string, unknown> = {};
+    block.inputs.forEach(input => {
+      if (input.required || input.default !== undefined) {
+        if (input.type === 'number') {
+          params[input.name] = input.default ?? 0;
+        } else if (input.type === 'checkbox') {
+          params[input.name] = input.default ?? false;
+        } else {
+          params[input.name] = input.default ?? (input.placeholder || '');
+        }
+      }
+    });
+    return {
+      label: `${block.label} (${block.type})`,
+      description: block.description || `Add a ${block.type} step`,
+      body: {
+        id: '${1:${UUID}}',
+        type: block.type,
+        params,
+      },
+    };
+  });
+
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     type: 'object',
@@ -57,6 +82,23 @@ export function getTkSchema() {
         description: 'Variables available to all tests via ${name} syntax',
         additionalProperties: true,
       },
+      engine: {
+        type: 'string',
+        enum: ['web', 'mobile'],
+        description: 'Which executor runs this module\'s tests. Defaults to "web".',
+      },
+      mobileConfig: {
+        type: 'object',
+        description: 'Appium session config — only used when engine is "mobile"',
+        properties: {
+          platform: { type: 'string', enum: ['android', 'ios'] },
+          deviceId: { type: 'string', description: 'adb serial or iOS simulator UDID' },
+          appPath: { type: 'string', description: 'Path to a .apk/.app/.ipa to install before the session starts' },
+          appPackage: { type: 'string', description: 'Android package id of an already-installed app' },
+          appActivity: { type: 'string', description: 'Android activity to launch' },
+          bundleId: { type: 'string', description: 'iOS bundle id of an already-installed app' },
+        },
+      },
       tests: {
         type: 'array',
         description: 'Test cases',
@@ -74,6 +116,7 @@ export function getTkSchema() {
               items: {
                 type: 'object',
                 required: ['id', 'type', 'params'],
+                defaultSnippets: stepSnippets,
                 properties: {
                   id: { type: 'string', description: 'Unique step identifier' },
                   type: {
@@ -84,6 +127,23 @@ export function getTkSchema() {
                   params: {
                     type: 'object',
                     description: 'Parameters for this block',
+                  },
+                  skip: {
+                    type: 'boolean',
+                    description: 'Skip this step during execution',
+                    default: false,
+                  },
+                  description: {
+                    type: 'string',
+                    description: 'Optional note shown in the visual builder',
+                  },
+                  timeout: {
+                    type: 'number',
+                    description: 'Overrides this step\'s default timeout (ms). Ignored by container steps.',
+                  },
+                  retry: {
+                    type: 'number',
+                    description: 'Additional attempts on failure before the step is marked failed. Ignored by container steps.',
                   },
                   children: {
                     type: 'array',

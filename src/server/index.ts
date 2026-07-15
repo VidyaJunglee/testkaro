@@ -3,7 +3,9 @@ import https from 'node:https';
 import { URL } from 'node:url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { PlaywrightExecutor, ExecutionConfig, TestStep } from './playwright-executor.js';
-import { startRecording, stopRecording } from './recorder.js';
+import { MobileExecutor, MobileExecutionConfig, MobileTestStep } from './mobile-executor.js';
+import { listDevices, runDoctorChecks, installAppiumDriver, bootIosSimulator } from './mobile-devices.js';
+import { startRecording, stopRecording, setRecordingMode, toggleDomOverlay, RecordingSession } from './recorder.js';
 
 const PORT = 3001;
 
@@ -92,10 +94,12 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocketServer({ server, path: '/ws' });
 
+type AnyExecutor = PlaywrightExecutor | MobileExecutor;
+
 wss.on('connection', (ws: WebSocket) => {
   console.log('[TestKaro] WebSocket client connected');
-  let executor: PlaywrightExecutor | null = null;
-  let recordingSession: any = null;
+  let executor: AnyExecutor | null = null;
+  let recordingSession: RecordingSession | null = null;
 
   ws.on('message', async (raw) => {
     let msg: any;
@@ -106,29 +110,103 @@ wss.on('connection', (ws: WebSocket) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(event));
     };
 
+    try {
     switch (msg.type) {
       case 'run': {
+        // A second 'run' on the same socket must not orphan a live browser/device session
+        if (executor) {
+          executor.abort();
+          await executor.close().catch(() => {});
+          executor = null;
+        }
+
+        if (msg.engine === 'mobile') {
+          const steps: MobileTestStep[] = msg.steps || [];
+          const mobileConfig: MobileExecutionConfig = {
+            platform: msg.mobileConfig?.platform === 'ios' ? 'ios' : 'android',
+            deviceId: msg.mobileConfig?.deviceId || undefined,
+            appPath: msg.mobileConfig?.appPath || undefined,
+            appPackage: msg.mobileConfig?.appPackage || undefined,
+            appActivity: msg.mobileConfig?.appActivity || undefined,
+            bundleId: msg.mobileConfig?.bundleId || undefined,
+            screenshotOnFailure: msg.screenshotOnFailure !== false,
+          };
+
+          const mobileExecutor = new MobileExecutor(send, mobileConfig);
+          executor = mobileExecutor;
+          if (msg.breakpoints && Array.isArray(msg.breakpoints)) {
+            mobileExecutor.breakpoints = new Set(msg.breakpoints);
+          }
+
+          try {
+            await mobileExecutor.launch();
+            await mobileExecutor.run(steps);
+          } catch (err: any) {
+            send({ type: 'error', data: { message: err.message || String(err) } });
+            await mobileExecutor.close().catch(() => {});
+          }
+          executor = null;
+          break;
+        }
+
         const steps: TestStep[] = msg.steps || [];
         const config: ExecutionConfig = {
           headed: msg.headed !== false,
-          slowMo: msg.slowMo || 50,
+          browserType: ['chromium', 'firefox', 'webkit'].includes(msg.browserType) ? msg.browserType : undefined,
+          slowMo: msg.slowMo || 30,
           viewport: msg.viewport || { width: 1280, height: 720 },
           recordVideo: msg.recordVideo || false,
+          screenshotOnFailure: msg.screenshotOnFailure !== false,
+          videoDir: msg.videoDir || undefined,
         };
 
-        executor = new PlaywrightExecutor(send, config);
+        const webExecutor = new PlaywrightExecutor(send, config);
+        executor = webExecutor;
         if (msg.breakpoints && Array.isArray(msg.breakpoints)) {
-          executor.breakpoints = new Set(msg.breakpoints);
+          webExecutor.breakpoints = new Set(msg.breakpoints);
         }
 
         try {
-          await executor.launch();
-          await executor.executeSteps(steps);
+          await webExecutor.launch();
+          await webExecutor.run(steps);
+          // In headed mode, executor stays alive until 'stop' is sent
+          if (!config.headed) {
+            executor = null;
+          }
         } catch (err: any) {
           send({ type: 'error', data: { message: err.message || String(err) } });
-          await executor.close();
+          await webExecutor.close();
+          executor = null;
         }
-        executor = null;
+        break;
+      }
+
+      case 'list-devices': {
+        const devices = await listDevices();
+        send({ type: 'devices', data: { devices } });
+        break;
+      }
+
+      case 'boot-device': {
+        try {
+          await bootIosSimulator(String(msg.deviceId || ''));
+          send({ type: 'device-booted', data: { deviceId: msg.deviceId } });
+        } catch (err: any) {
+          send({ type: 'error', data: { message: err.message || String(err) } });
+        }
+        break;
+      }
+
+      case 'doctor': {
+        const checks = await runDoctorChecks();
+        send({ type: 'doctor-result', data: { checks } });
+        break;
+      }
+
+      case 'install-driver': {
+        const driver = msg.driver === 'xcuitest' ? 'xcuitest' : 'uiautomator2';
+        const result = await installAppiumDriver(driver);
+        send({ type: 'driver-install-result', data: { driver, ...result } });
         break;
       }
 
@@ -162,7 +240,13 @@ wss.on('connection', (ws: WebSocket) => {
         const url = String(msg.url || '');
         const headed = msg.headed !== false;
         try {
-          recordingSession = await startRecording(url, headed, send);
+          recordingSession = await startRecording(url, headed, (event) => {
+            send(event);
+            // If browser closed/disconnected, null out the session
+            if (event.type === 'record-done') {
+              recordingSession = null;
+            }
+          });
         } catch (err: any) {
           send({ type: 'error', data: { message: err.message } });
         }
@@ -171,15 +255,35 @@ wss.on('connection', (ws: WebSocket) => {
 
       case 'record-stop': {
         if (recordingSession) {
-          await stopRecording(recordingSession);
+          const session = recordingSession;
           recordingSession = null;
+          await stopRecording(session);
           send({ type: 'record-done', data: {} });
+        }
+        break;
+      }
+
+      case 'record-mode': {
+        if (recordingSession && msg.mode) {
+          await setRecordingMode(recordingSession, msg.mode);
+          send({ type: 'record-mode-changed', data: { mode: msg.mode } });
+        }
+        break;
+      }
+
+      case 'overlay-toggle': {
+        if (recordingSession) {
+          await toggleDomOverlay(recordingSession);
+          send({ type: 'overlay-toggled', data: {} });
         }
         break;
       }
 
       default:
         send({ type: 'error', data: { message: `Unknown message type: ${msg.type}` } });
+    }
+    } catch (err: any) {
+      send({ type: 'error', data: { message: err?.message || String(err) } });
     }
   });
 

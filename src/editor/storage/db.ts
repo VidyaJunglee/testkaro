@@ -23,6 +23,8 @@ export interface StoredRun {
   skipped: number;
   total: number;
   results: any[];
+  /** Manual screenshot-step captures (not failure screenshots — those live inline on results[].screenshot until saveRun strips them). */
+  screenshots?: { label: string; data: string }[];
 }
 
 function openDB(): Promise<IDBDatabase> {

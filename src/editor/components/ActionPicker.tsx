@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Search, X, ChevronDown, ChevronRight,
-  Globe, MousePointer2, ShieldCheck, Wifi, GitBranch, Database,
+  Globe, MousePointer2, ShieldCheck, Wifi, GitBranch, Database, Smartphone,
 } from 'lucide-react';
 import { BLOCKS, EditorBlock } from '../blocks';
 import { BlockCategory } from '../../schema';
@@ -21,6 +21,7 @@ const CATEGORIES: CategoryMeta[] = [
   { key: 'api', label: 'API', icon: <Wifi size={14} />, color: '#9C27B0' },
   { key: 'logic', label: 'Logic', icon: <GitBranch size={14} />, color: '#607D8B' },
   { key: 'data', label: 'Data', icon: <Database size={14} />, color: '#00BCD4' },
+  { key: 'mobile', label: 'Mobile', icon: <Smartphone size={14} />, color: '#E91E63' },
 ];
 
 interface Props {

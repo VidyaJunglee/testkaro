@@ -1,113 +1,176 @@
 @import "tailwindcss";
 
+/* ─── Light Mode Tokens ────────────────────────────────────────────────────── */
 @theme {
-  --color-bg-primary: #ffffff;
-  --color-bg-secondary: #f9fafb;
-  --color-bg-tertiary: #f3f4f6;
-  --color-bg-card: #ffffff;
-  --color-bg-hover: #f0f2f5;
-  --color-bg-input: #f5f6f8;
-  --color-border: #e5e7eb;
-  --color-border-subtle: #eef0f2;
-  --color-border-active: #3b82f6;
-  --color-text-primary: #111827;
-  --color-text-secondary: #4b5563;
-  --color-text-tertiary: #9ca3af;
-  --color-accent: #3b82f6;
-  --color-accent-hover: #2563eb;
-  --color-success: #10b981;
-  --color-danger: #ef4444;
-  --color-warning: #f59e0b;
+  /* Surfaces */
+  --color-bg-primary:    #f5f5f5;
+  --color-bg-secondary:  #ffffff;
+  --color-bg-tertiary:   #eeeeee;
+  --color-bg-card:       #ffffff;
+  --color-bg-hover:      #e9e9e9;
+  --color-bg-input:      #ffffff;
+  --color-bg-elevated:   #ffffff;
+
+  /* Borders */
+  --color-border:        #e0e0e0;
+  --color-border-subtle: #eaeaea;
+  --color-border-active: #111111;
+
+  /* Text — five-tier ladder */
+  --color-text-primary:  #111111;
+  --color-text-secondary:#5a5a5a;
+  --color-text-tertiary: #9a9a9a;
+
+  /* Primary action — single black pill */
+  --color-accent:        #111111;
+  --color-accent-hover:  #2d2d2d;
+  --color-on-accent:     #ffffff;
+
+  /* Semantic */
+  --color-success:       #16a34a;
+  --color-danger:        #dc2626;
+  --color-warning:       #d97706;
 }
 
-/* Dark mode overrides */
+/* ─── Dark Mode Overrides ──────────────────────────────────────────────────── */
 :root.dark {
-  --color-bg-primary: #0f1117;
-  --color-bg-secondary: #161922;
-  --color-bg-tertiary: #1c2030;
-  --color-bg-card: #1a1e2b;
-  --color-bg-hover: #242838;
-  --color-bg-input: #1e2231;
-  --color-border: #2a2f3e;
-  --color-border-subtle: #222636;
-  --color-border-active: #3b82f6;
-  --color-text-primary: #e8ecf4;
-  --color-text-secondary: #a0aec0;
-  --color-text-tertiary: #5f6b7a;
-  --color-accent: #60a5fa;
-  --color-accent-hover: #3b82f6;
-  --color-success: #34d399;
-  --color-danger: #f87171;
-  --color-warning: #fbbf24;
+  /* Surfaces */
+  --color-bg-primary:    #0c0c0c;
+  --color-bg-secondary:  #141414;
+  --color-bg-tertiary:   #1e1e1e;
+  --color-bg-card:       #181818;
+  --color-bg-hover:      #242424;
+  --color-bg-input:      #191919;
+  --color-bg-elevated:   #1c1c1c;
+
+  /* Borders */
+  --color-border:        #2c2c2c;
+  --color-border-subtle: #222222;
+  --color-border-active: #e0e0e0;
+
+  /* Text */
+  --color-text-primary:  #eeeeee;
+  --color-text-secondary:#9e9e9e;
+  --color-text-tertiary: #5a5a5a;
+
+  /* Primary action — inverted on dark */
+  --color-accent:        #e8e8e8;
+  --color-accent-hover:  #cccccc;
+  --color-on-accent:     #0c0c0c;
+
+  /* Semantic */
+  --color-success:       #22c55e;
+  --color-danger:        #ef4444;
+  --color-warning:       #f59e0b;
 }
 
-/* Base */
+/* ─── Body ─────────────────────────────────────────────────────────────────── */
 body {
-  @apply bg-bg-primary text-text-primary antialiased;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
-  font-size: 15px;
+  font-size: 15.5px;
   line-height: 1.55;
 }
 
-/* Smooth transitions */
-* {
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ─── Elevation ─────────────────────────────────────────────────────────────── */
+
+/* Structural panels — no blur, just colour */
+.glass-panel {
+  /* solid surface token handles the look; nothing extra needed */
 }
 
-/* Scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
-.dark ::-webkit-scrollbar-thumb { background: #3a3f50; }
-.dark ::-webkit-scrollbar-thumb:hover { background: #4a5060; }
+/* Modals and popups — clean shadow */
+.glass-elevated {
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10), 0 1px 4px rgba(0, 0, 0, 0.06);
+}
 
-/* Monaco overrides */
+:root.dark .glass-elevated {
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.60), 0 1px 6px rgba(0, 0, 0, 0.40);
+}
+
+/* ─── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+.dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.20); }
+
+/* ─── Canvas (visual builder dot grid) ─────────────────────────────────────── */
+.canvas-bg {
+  background-image: radial-gradient(circle, rgba(0,0,0,0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+:root.dark .canvas-bg {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.04) 1px, transparent 1px);
+}
+
+/* ─── Monaco ────────────────────────────────────────────────────────────────── */
 .monaco-editor .suggest-widget { z-index: 1000 !important; }
 
-/* Animations */
+/* ─── Animations ────────────────────────────────────────────────────────────── */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes slideIn {
   from { opacity: 0; transform: translateX(-8px); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-.animate-fade-in {
-  animation: fadeIn 200ms ease-out;
+@keyframes glassReveal {
+  from { opacity: 0; transform: translateY(8px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0)  scale(1); }
 }
 
-.animate-slide-in {
-  animation: slideIn 150ms ease-out;
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.animate-slide-in-right {
-  animation: slideInRight 200ms ease-out;
+@keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+  50%       { box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.08); }
+}
+:root.dark @keyframes stepPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+  50%       { box-shadow: 0 0 0 3px rgba(255,255,255,0.08); }
 }
 
-/* Focus ring utility */
+.animate-fade-in        { animation: fadeIn       200ms ease-out; }
+.animate-slide-in       { animation: slideIn      150ms ease-out; }
+.animate-slide-in-right { animation: slideInRight 200ms ease-out; }
+.animate-glass-reveal   { animation: glassReveal  240ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-slide-up       { animation: slideUp      200ms cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-step-pulse     { animation: stepPulse    1.5s  ease-in-out infinite; }
+
+/* ─── Focus ring ────────────────────────────────────────────────────────────── */
 .focus-ring:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid var(--color-border-active);
   outline-offset: 2px;
 }
 
-/* kbd styling */
+/* ─── kbd ───────────────────────────────────────────────────────────────────── */
 kbd {
   font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
   font-size: 11px;
 }
 
-/* Scale up small text globally */
-.text-xs { font-size: 13px !important; line-height: 1.4 !important; }
-.text-sm { font-size: 14px !important; line-height: 1.5 !important; }
-.text-\[10px\] { font-size: 11px !important; }
-.text-\[11px\] { font-size: 12px !important; }
+/* ─── Text size overrides ───────────────────────────────────────────────────── */
+.text-xs       { font-size: 13.5px !important; line-height: 1.45 !important; }
+.text-sm       { font-size: 15px   !important; line-height: 1.5  !important; }
+.text-base     { font-size: 16px   !important; line-height: 1.55 !important; }
+.text-\[9px\]  { font-size: 11px   !important; }
+.text-\[10px\] { font-size: 12px   !important; }
+.text-\[11px\] { font-size: 13px   !important; }
+.text-\[12px\] { font-size: 13.5px !important; }
+.text-\[13px\] { font-size: 14px   !important; }

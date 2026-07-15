@@ -1,6 +1,6 @@
 import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { useStore as useZustandStore } from 'zustand';
-import { TestStep } from '../schema';
+import { TestStep, TestFile } from '../schema';
 import { VisualBuilder } from './components/VisualBuilder';
 import { JsonEditor } from './components/JsonEditor';
 import { ExecutionPanel } from './components/ExecutionPanel';
@@ -14,12 +14,16 @@ import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { AppLoader } from './components/AppLoader';
 import { BLOCKS } from './blocks';
+import { ConfirmModal } from './components/ConfirmModal';
+import { Toaster } from './components/Toaster';
+import { toast } from './store/toast';
 import { useRoute, AppRoute } from './router';
 import {
   useStore,
   useFile, useFileId,
   useTab, useShowRunner, useShowRecordBar, useCommandPaletteOpen, useActionPickerOpen, useViewLevel,
 } from './store';
+import { getGlobalEnvironments, saveAllGlobalEnvironments } from './storage/global-env-store';
 
 // ─── Editor View ─────────────────────────────────────────────────────────────
 
@@ -45,7 +49,6 @@ function EditorView({ route }: { route: AppRoute }) {
     const saved = localStorage.getItem('testkaro-runner-width');
     return saved ? Number(saved) : 440;
   });
-
   const handleSidebarResize = useCallback((e: React.PointerEvent) => {
     e.preventDefault();
     const startX = e.clientX;
@@ -103,6 +106,11 @@ function EditorView({ route }: { route: AppRoute }) {
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current); };
   }, [file, fileId]);
 
+
+  const handleJsonChange = useCallback((f: TestFile) => {
+    store.getState().setFile(f);
+  }, []);
+
   const handleStepRecorded = useCallback((step: TestStep) => {
     const state = store.getState();
     const currentSteps = state.file.tests[state.activeTestIndex]?.steps || [];
@@ -148,13 +156,16 @@ function EditorView({ route }: { route: AppRoute }) {
         onOpenEnvManager={() => store.getState().setEnvDrawerOpen(true)}
       />
 
-      {/* Record bar */}
-      {showRecordBar && (
-        <RecordBar
-          onStepRecorded={handleStepRecorded}
-          onRecordingStateChange={(r) => store.getState().setRecording(r)}
-        />
-      )}
+      {/* Record modal + recording status bar */}
+      <RecordBar
+        open={showRecordBar}
+        onClose={() => store.getState().setShowRecordBar(false)}
+        onStepRecorded={handleStepRecorded}
+        onRecordingStateChange={(r) => {
+          store.getState().setRecording(r);
+          if (!r) store.getState().setShowRecordBar(false);
+        }}
+      />
 
       {/* Main content */}
       <div className="flex-1 min-h-0 flex">
@@ -179,7 +190,7 @@ function EditorView({ route }: { route: AppRoute }) {
                 <VisualBuilder />
               </div>
               <div className={`absolute inset-0 ${tab === 'json' ? '' : 'invisible'}`}>
-                <JsonEditor file={file} onChange={(f) => store.getState().setFile(f)} />
+                <JsonEditor file={file} onChange={handleJsonChange} />
               </div>
             </>
           )}
@@ -211,9 +222,41 @@ function EditorView({ route }: { route: AppRoute }) {
       />
 
       <ActionPicker onAddBlock={handleAddBlock} />
-
-      <EnvDrawer />
     </div>
+  );
+}
+
+// ─── Global Confirm Modal (reads from store) ────────────────────────────────
+
+function GlobalConfirmModal() {
+  const confirmModal = useStore(s => s.confirmModal);
+  const closeConfirm = useStore(s => s.closeConfirm);
+  const [loading, setLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    if (confirmModal.onConfirm) {
+      setLoading(true);
+      try {
+        await confirmModal.onConfirm();
+      } finally {
+        setLoading(false);
+      }
+    }
+    closeConfirm();
+  };
+
+  return (
+    <ConfirmModal
+      open={confirmModal.open}
+      onClose={closeConfirm}
+      onConfirm={handleConfirm}
+      title={confirmModal.title}
+      description={confirmModal.description}
+      confirmLabel={confirmModal.confirmLabel}
+      cancelLabel={confirmModal.cancelLabel}
+      variant={confirmModal.variant}
+      loading={loading}
+    />
   );
 }
 
@@ -229,18 +272,49 @@ export function App() {
     }
   }, []);
 
+  // Load global environments from IndexedDB once at app root (available on Dashboard + Editor)
+  useEffect(() => {
+    getGlobalEnvironments()
+      .then(envs => useStore.getState().setGlobalEnvironments(envs))
+      .catch(() => {});
+  }, []);
+
+  // Sync global environment changes back to IndexedDB
+  useEffect(() => {
+    let prev = useStore.getState().globalEnvironments;
+    return useStore.subscribe((state) => {
+      if (state.globalEnvironments !== prev) {
+        prev = state.globalEnvironments;
+        saveAllGlobalEnvironments(state.globalEnvironments).catch(() => {
+          toast.error('Failed to save environment changes');
+        });
+      }
+    });
+  }, []);
+
+  let content: React.ReactNode;
   switch (route.page) {
     case 'dashboard':
-      return <Dashboard />;
-
+      content = <Dashboard />;
+      break;
     case 'app':
-      return (
+      content = (
         <AppLoader route={route}>
           <EditorView route={route} />
         </AppLoader>
       );
-
+      break;
     case 'not-found':
-      return <Dashboard />;
+      content = <Dashboard />;
+      break;
   }
+
+  return (
+    <>
+      {content}
+      <EnvDrawer />
+      <GlobalConfirmModal />
+      <Toaster />
+    </>
+  );
 }

@@ -24,7 +24,9 @@ Commands:
 Options (run):
   --headless        Run in headless mode (default: true)
   --headed          Run with visible browser
+  --browser <type>  Browser: chromium, firefox, webkit (default: chromium)
   --base-url <url>  Base URL for navigation
+  --filter <tag>    Only run tests with the given tag
   --output <dir>    Output directory for results
   --reporter <type> Reporter: console, json, junit (default: console)
 `);
@@ -74,15 +76,28 @@ async function run(): Promise<void> {
       process.exit(1);
     }
 
-    const testFile: TestFile = JSON.parse(readFileSync(fullPath, 'utf-8'));
+    let testFile: TestFile = JSON.parse(readFileSync(fullPath, 'utf-8'));
     const headed = args.includes('--headed');
     const baseUrlIdx = args.indexOf('--base-url');
     const reporterIdx = args.indexOf('--reporter');
     const outputIdx = args.indexOf('--output');
+    const browserIdx = args.indexOf('--browser');
+    const filterIdx = args.indexOf('--filter');
+
+    if (filterIdx > -1) {
+      const tag = args[filterIdx + 1];
+      const filtered = testFile.tests.filter(t => t.tags?.includes(tag));
+      if (filtered.length === 0) {
+        console.error(`Error: no tests found with tag "${tag}"`);
+        process.exit(1);
+      }
+      testFile = { ...testFile, tests: filtered };
+    }
 
     const options: ExecutorOptions = {
       headless: !headed,
       baseUrl: baseUrlIdx > -1 ? args[baseUrlIdx + 1] : undefined,
+      browserType: browserIdx > -1 ? (args[browserIdx + 1] as ExecutorOptions['browserType']) : undefined,
     };
 
     console.log(`\n  Running: ${testFile.name}\n`);

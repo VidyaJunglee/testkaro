@@ -79,8 +79,39 @@ const repeat: BlockDefinition = {
   },
 };
 
+const forEachBlock: BlockDefinition = {
+  type: 'for_each',
+  category: 'logic',
+  label: 'For Each',
+  description: 'Iterate over an array variable, running child steps for each item',
+  color: '#607D8B',
+  hasChildren: true,
+  inputs: [
+    { name: 'variable', label: 'Array Variable Name', type: 'text', placeholder: 'myArray' },
+    { name: 'items', label: 'Inline Items (JSON)', type: 'text', placeholder: '["a","b","c"]' },
+  ],
+  async execute(_params) {
+    const start = Date.now();
+    return { stepId: '', type: 'for_each', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const tryCatchBlock: BlockDefinition = {
+  type: 'try_catch',
+  category: 'logic',
+  label: 'Try / Catch',
+  description: 'Run child steps; if one fails, capture the error in __error and continue',
+  color: '#607D8B',
+  hasChildren: true,
+  inputs: [],
+  async execute(_params) {
+    const start = Date.now();
+    return { stepId: '', type: 'try_catch', status: 'passed', duration: Date.now() - start };
+  },
+};
+
 // ─── Register ────────────────────────────────────────────────────────────────
 
 export function registerLogicBlocks(): void {
-  [setVariable, log, ifBlock, repeat].forEach(registerBlock);
+  [setVariable, log, ifBlock, repeat, forEachBlock, tryCatchBlock].forEach(registerBlock);
 }

@@ -12,6 +12,55 @@ interface Command {
   keywords?: string[];
 }
 
+// Extra search terms per block type — lets users find a block by intent
+// ("delay" → wait, "goto" → navigate) rather than its exact type name.
+const BLOCK_ALIASES: Record<string, string[]> = {
+  wait: ['delay', 'pause', 'sleep'],
+  wait_for_element: ['delay', 'appear'],
+  navigate: ['goto', 'open', 'visit', 'url'],
+  click: ['tap', 'press'],
+  fill: ['type', 'input', 'enter'],
+  assert_visible: ['exists', 'shown'],
+  assert_hidden: ['gone', 'invisible'],
+  assert_text: ['contains', 'expect'],
+  assert_url: ['location'],
+  screenshot: ['capture', 'snap'],
+  api_get: ['fetch', 'request', 'http'],
+  api_post: ['fetch', 'request', 'http'],
+  if: ['condition', 'branch'],
+  repeat: ['loop', 'iterate'],
+  for_each: ['loop', 'iterate'],
+  try_catch: ['error handling'],
+  set_variable: ['store', 'save'],
+};
+
+// Subsequence fuzzy match: every query char must appear in text, in order,
+// though not necessarily contiguous. Returns a score (higher = better) or
+// null when the query doesn't match at all. Contiguous / early matches score higher.
+function fuzzyScore(text: string, query: string): number | null {
+  if (!query) return 0;
+  const t = text.toLowerCase();
+  const q = query.toLowerCase();
+
+  const substringIdx = t.indexOf(q);
+  if (substringIdx !== -1) {
+    // Exact substring — best possible match, reward earlier position.
+    return 1000 - substringIdx;
+  }
+
+  let score = 0;
+  let ti = 0;
+  let consecutive = 0;
+  for (let qi = 0; qi < q.length; qi++) {
+    const idx = t.indexOf(q[qi], ti);
+    if (idx === -1) return null;
+    consecutive = idx === ti ? consecutive + 1 : 0;
+    score += 10 - Math.min(idx - ti, 9) + consecutive * 2;
+    ti = idx + 1;
+  }
+  return score;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
@@ -44,7 +93,7 @@ export function CommandPalette({ open, onClose, blocks, onAddBlock, onRunTests, 
         category: block.category,
         icon: <Plus size={14} />,
         action: () => onAddBlock(block.type),
-        keywords: [block.type, block.category],
+        keywords: [block.type, block.category, ...(BLOCK_ALIASES[block.type] || [])],
       });
     });
 
@@ -52,14 +101,20 @@ export function CommandPalette({ open, onClose, blocks, onAddBlock, onRunTests, 
   }, [blocks, onAddBlock, onRunTests, onRecord, onNewFile]);
 
   const filtered = useMemo(() => {
-    if (!query) return commands;
-    const q = query.toLowerCase();
-    return commands.filter(c =>
-      c.label.toLowerCase().includes(q) ||
-      c.description?.toLowerCase().includes(q) ||
-      c.keywords?.some(k => k.includes(q)) ||
-      c.category.toLowerCase().includes(q)
-    );
+    if (!query.trim()) return commands;
+    const scored = commands
+      .map(c => {
+        const best = Math.max(
+          fuzzyScore(c.label, query) ?? -Infinity,
+          (c.description ? fuzzyScore(c.description, query) : null) ?? -Infinity,
+          fuzzyScore(c.category, query) ?? -Infinity,
+          ...(c.keywords?.map(k => fuzzyScore(k, query) ?? -Infinity) || [-Infinity]),
+        );
+        return { c, score: best };
+      })
+      .filter(({ score }) => score > -Infinity)
+      .sort((a, b) => b.score - a.score);
+    return scored.map(({ c }) => c);
   }, [commands, query]);
 
   useEffect(() => {
@@ -102,7 +157,7 @@ export function CommandPalette({ open, onClose, blocks, onAddBlock, onRunTests, 
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]" onClick={onClose}>
       <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
       <div
-        className="relative w-[560px] max-h-[420px] bg-bg-primary border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-[560px] max-h-[420px] bg-bg-elevated border border-border rounded-xl flex flex-col overflow-hidden shadow-2xl animate-glass-reveal"
         onClick={e => e.stopPropagation()}
       >
         {/* Search input */}

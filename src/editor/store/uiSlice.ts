@@ -1,4 +1,5 @@
 import { StateCreator } from 'zustand';
+import { ConfirmVariant } from '../components/ConfirmModal';
 
 // ─── UI Slice ───────────────────────────────────────────────────────────────
 // Manages UI state: tabs, panels, modals, recording
@@ -7,6 +8,16 @@ import { StateCreator } from 'zustand';
 export type EditorTab = 'visual' | 'json';
 export type BottomTab = 'results' | 'timeline' | 'network' | 'console' | 'variables' | 'screenshots' | 'history';
 export type ViewLevel = 'module' | 'test';
+
+export interface ConfirmModalState {
+  open: boolean;
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  variant?: ConfirmVariant;
+  onConfirm?: () => void | Promise<void>;
+}
 
 export interface UISlice {
   // State
@@ -20,6 +31,9 @@ export interface UISlice {
   actionPickerOpen: boolean;
   envDrawerOpen: boolean;
   darkMode: boolean;
+  confirmModal: ConfirmModalState;
+  /** True while the JSON editor holds text that fails to parse — blocks Run. */
+  jsonInvalid: boolean;
 
   // Actions
   setTab: (tab: EditorTab) => void;
@@ -34,6 +48,10 @@ export interface UISlice {
   setActionPickerOpen: (open: boolean) => void;
   setEnvDrawerOpen: (open: boolean) => void;
   toggleDarkMode: () => void;
+  /** Show the global confirm modal. Returns via onConfirm callback. */
+  showConfirm: (opts: Omit<ConfirmModalState, 'open'>) => void;
+  closeConfirm: () => void;
+  setJsonInvalid: (invalid: boolean) => void;
 }
 
 export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) => ({
@@ -47,6 +65,8 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) 
   actionPickerOpen: false,
   envDrawerOpen: false,
   darkMode: localStorage.getItem('testkaro-dark') !== 'false',
+  confirmModal: { open: false, title: '' },
+  jsonInvalid: false,
 
   setTab: (tab) => set({ tab }),
   setBottomTab: (bottomTab) => set({ bottomTab }),
@@ -66,4 +86,7 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) 
     else document.documentElement.classList.remove('dark');
     return { darkMode: next };
   }),
+  showConfirm: (opts) => set({ confirmModal: { ...opts, open: true } }),
+  closeConfirm: () => set({ confirmModal: { open: false, title: '' } }),
+  setJsonInvalid: (jsonInvalid) => set({ jsonInvalid }),
 });

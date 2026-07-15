@@ -6,7 +6,8 @@ import { StoredRun } from '../storage/db';
 // Manages test run state, results, network, console, screenshots
 
 export type RunState = 'idle' | 'connecting' | 'running' | 'done';
-export type RunMode = 'current' | 'module' | 'all';
+export type RunMode = 'current' | 'module' | 'all' | 'all-modules';
+export type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
 export interface StepResult {
   stepId: string;
@@ -17,12 +18,18 @@ export interface StepResult {
   error?: string;
   screenshot?: string;
   testIndex?: number; // which test this result belongs to (for "run all" mode)
+  moduleIndex?: number; // which module this result belongs to (for "all-modules" mode)
+  moduleName?: string;
 }
 
 export interface RunAllProgress {
   currentTestIndex: number;
   totalTests: number;
   currentTestName: string;
+  // Module-level progress (for all-modules mode)
+  currentModuleIndex?: number;
+  totalModules?: number;
+  currentModuleName?: string;
 }
 
 export interface ExecutionSlice {
@@ -40,6 +47,7 @@ export interface ExecutionSlice {
   paused: boolean;
   headed: boolean;
   recordVideo: boolean;
+  browserType: BrowserType;
 
   // Actions
   setRunState: (state: RunState) => void;
@@ -56,6 +64,7 @@ export interface ExecutionSlice {
   setPaused: (paused: boolean) => void;
   setHeaded: (headed: boolean) => void;
   setRecordVideo: (record: boolean) => void;
+  setBrowserType: (browserType: BrowserType) => void;
   resetRun: () => void;
 
   // Computed
@@ -78,6 +87,7 @@ export const createExecutionSlice: StateCreator<ExecutionSlice, [], [], Executio
   paused: false,
   headed: true,
   recordVideo: false,
+  browserType: 'chromium',
 
   setRunState: (runState) => set({ runState }),
   setRunMode: (runMode) => set({ runMode }),
@@ -115,6 +125,7 @@ export const createExecutionSlice: StateCreator<ExecutionSlice, [], [], Executio
   setPaused: (paused) => set({ paused }),
   setHeaded: (headed) => set({ headed }),
   setRecordVideo: (recordVideo) => set({ recordVideo }),
+  setBrowserType: (browserType) => set({ browserType }),
 
   resetRun: () => set({
     results: [],

@@ -135,8 +135,113 @@ const pressKey: BlockDefinition = {
   },
 };
 
+const doubleClick: BlockDefinition = {
+  type: 'double_click',
+  category: 'interaction',
+  label: 'Double Click',
+  description: 'Double-click on an element',
+  color: '#2196F3',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.dblclick(String(params.selector));
+    return { stepId: '', type: 'double_click', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const rightClick: BlockDefinition = {
+  type: 'right_click',
+  category: 'interaction',
+  label: 'Right Click',
+  description: 'Right-click on an element (opens context menu)',
+  color: '#2196F3',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.click(String(params.selector), { button: 'right' });
+    return { stepId: '', type: 'right_click', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const clear: BlockDefinition = {
+  type: 'clear',
+  category: 'interaction',
+  label: 'Clear Input',
+  description: 'Clear the value of an input field',
+  color: '#2196F3',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.fill(String(params.selector), '');
+    return { stepId: '', type: 'clear', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const uncheck: BlockDefinition = {
+  type: 'uncheck',
+  category: 'interaction',
+  label: 'Uncheck',
+  description: 'Uncheck a checkbox',
+  color: '#2196F3',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.uncheck(String(params.selector));
+    return { stepId: '', type: 'uncheck', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const scrollTo: BlockDefinition = {
+  type: 'scroll_to',
+  category: 'interaction',
+  label: 'Scroll to Element',
+  description: 'Scroll an element into view',
+  color: '#2196F3',
+  inputs: [
+    { name: 'selector', label: 'Selector', type: 'text', required: true },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.locator(String(params.selector)).scrollIntoViewIfNeeded();
+    return { stepId: '', type: 'scroll_to', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const uploadFile: BlockDefinition = {
+  type: 'upload_file',
+  category: 'interaction',
+  label: 'Upload File',
+  description: 'Set a file input to a file path',
+  color: '#2196F3',
+  inputs: [
+    { name: 'selector', label: 'File Input Selector', type: 'text', required: true },
+    { name: 'path', label: 'File Path', type: 'text', required: true, placeholder: '/tmp/file.pdf' },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.setInputFiles(String(params.selector), String(params.path));
+    return { stepId: '', type: 'upload_file', status: 'passed', duration: Date.now() - start };
+  },
+};
+
 // ─── Register ────────────────────────────────────────────────────────────────
 
 export function registerInteractionBlocks(): void {
-  [click, fill, type, select, check, hover, pressKey].forEach(registerBlock);
+  [click, fill, type, select, check, hover, pressKey,
+   doubleClick, rightClick, clear, uncheck, scrollTo, uploadFile,
+  ].forEach(registerBlock);
 }

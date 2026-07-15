@@ -8,7 +8,6 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { useStore } from '../store';
-import { InlineConfirm } from './InlineConfirm';
 import { useRoute, navigateToApp } from '../router';
 import {
   Plus, Trash2, ChevronRight, ChevronDown,
@@ -73,6 +72,7 @@ export function Sidebar() {
   const [renamingTestIndex, setRenamingTestIndex] = useState<number | null>(null);
   const [testRenameValue, setTestRenameValue] = useState('');
   const [activeDragId, setActiveDragId] = useState<UniqueIdentifier | null>(null);
+  const [testSearch, setTestSearch] = useState('');
 
   const route = useRoute();
   const currentAppId = route.page === 'app' ? route.appId : null;
@@ -80,6 +80,29 @@ export function Sidebar() {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
+
+  // Auto-expand any module containing a search match so results are visible.
+  useEffect(() => {
+    const q = testSearch.trim().toLowerCase();
+    if (!q) return;
+    setExpandedModules(prev => {
+      const next = new Set(prev);
+      modules.forEach((mod, mi) => {
+        const tests = mi === activeModuleIndex ? (file.tests || []) : (mod.tests || []);
+        if (tests.some(t => t.name.toLowerCase().includes(q))) next.add(mi);
+      });
+      return next;
+    });
+  }, [testSearch, modules, activeModuleIndex, file.tests]);
+
+  const searchMatchCount = React.useMemo(() => {
+    const q = testSearch.trim().toLowerCase();
+    if (!q) return 0;
+    return modules.reduce((sum, mod, mi) => {
+      const tests = mi === activeModuleIndex ? (file.tests || []) : (mod.tests || []);
+      return sum + tests.filter(t => t.name.toLowerCase().includes(q)).length;
+    }, 0);
+  }, [testSearch, modules, activeModuleIndex, file.tests]);
 
   // ─── Keyboard Shortcuts ──────────────────────────────────────────────────
 
@@ -225,27 +248,42 @@ export function Sidebar() {
   const moduleIds = modules.map((_, i) => `mod-${i}`);
 
   return (
-    <div className="h-full bg-bg-secondary flex flex-col select-none">
+    <div className="h-full bg-bg-secondary flex flex-col select-none glass-panel">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 pt-3 pb-2 shrink-0">
-        <span className="text-[10px] uppercase tracking-widest text-text-tertiary font-semibold">
-          Explorer
-        </span>
-        <div className="flex items-center gap-0.5">
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-tertiary hover:text-accent hover:bg-bg-hover transition-all"
-            onClick={() => store.getState().addTest()}
-            title="New Test (Ctrl+T)"
-          >
-            <FileText size={11} />
-          </button>
-          <button
-            className="w-5 h-5 flex items-center justify-center rounded text-text-tertiary hover:text-accent hover:bg-bg-hover transition-all"
-            onClick={() => store.getState().addModule(`Module ${modules.length + 1}`)}
-            title="New Module (Ctrl+M)"
-          >
-            <Package size={11} />
-          </button>
+      <div className="px-3 pt-3 pb-2 shrink-0">
+        <div className="flex items-center justify-between mb-2.5">
+          <span className="text-[10px] uppercase tracking-widest text-text-tertiary font-bold">
+            Explorer
+          </span>
+          <div className="flex items-center gap-0.5">
+            <button
+              className="w-6 h-6 flex items-center justify-center rounded-md text-text-tertiary hover:text-accent hover:bg-bg-hover transition-all"
+              onClick={() => store.getState().addTest()}
+              title="New Test (Ctrl+T)"
+            >
+              <FileText size={12} />
+            </button>
+            <button
+              className="w-6 h-6 flex items-center justify-center rounded-md text-text-tertiary hover:text-accent hover:bg-bg-hover transition-all"
+              onClick={() => store.getState().addModule(`Module ${modules.length + 1}`)}
+              title="New Module (Ctrl+M)"
+            >
+              <Package size={12} />
+            </button>
+          </div>
+        </div>
+        <div className="relative">
+          <input
+            className="w-full bg-bg-input border border-border-subtle rounded-lg px-2.5 py-1.5 pr-14 text-xs text-text-primary placeholder:text-text-tertiary outline-none focus:border-border-active transition-all"
+            placeholder="Search tests…"
+            value={testSearch}
+            onChange={e => setTestSearch(e.target.value)}
+          />
+          {testSearch.trim() && (
+            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-text-tertiary">
+              {searchMatchCount} match{searchMatchCount === 1 ? '' : 'es'}
+            </span>
+          )}
         </div>
       </div>
 
@@ -287,7 +325,7 @@ export function Sidebar() {
                     {isExpanded && (
                       <div className="ml-3 border-l border-border/50">
                         <SortableContext items={testIds} strategy={verticalListSortingStrategy}>
-                          {tests.map((t, ti) => (
+                          {tests.map((t, ti) => testSearch && !t.name.toLowerCase().includes(testSearch.toLowerCase()) ? null : (
                             <SortableTestRow key={t.id} id={`test-${mi}-${ti}`}>
                               <TestNode
                                 test={t}
@@ -345,11 +383,11 @@ export function Sidebar() {
       </div>
 
       {/* Footer */}
-      <div className="px-3 py-2 border-t border-border text-[10px] text-text-tertiary shrink-0 flex items-center justify-between">
-        <span>
-          {modules.length} module{modules.length !== 1 ? 's' : ''} &middot; {(file.tests || []).length} test{(file.tests || []).length !== 1 ? 's' : ''}
+      <div className="px-3 py-2.5 border-t border-border text-[10px] text-text-tertiary shrink-0 flex items-center justify-between">
+        <span className="tabular-nums">
+          {modules.length} module{modules.length !== 1 ? 's' : ''} · {(file.tests || []).length} test{(file.tests || []).length !== 1 ? 's' : ''}
         </span>
-        <span className="text-[9px] opacity-60">Ctrl+T / Ctrl+M</span>
+        <kbd className="text-[9px] opacity-50 font-mono">⌘T / ⌘M</kbd>
       </div>
     </div>
   );
@@ -386,7 +424,7 @@ function ModuleNode({
   return (
     <div>
       <div
-        className={`group flex items-center gap-1 px-1.5 py-[5px] cursor-pointer text-[11px] transition-all ${
+        className={`group flex items-center gap-1 px-2 py-2 cursor-pointer text-xs transition-all ${
           isActive
             ? 'bg-accent/8 text-text-primary'
             : 'text-text-secondary hover:bg-bg-hover'
@@ -439,14 +477,19 @@ function ModuleNode({
                 onClick={e => { e.stopPropagation(); onStartRename(); }}
               ><Edit3 size={9} /></button>
               {canDelete && (
-                <InlineConfirm onConfirm={onDelete} message="Delete?">
-                  {({ requestConfirm }) => (
-                    <button
-                      className="w-4 h-4 flex items-center justify-center rounded text-text-tertiary hover:text-danger"
-                      onClick={e => { e.stopPropagation(); requestConfirm(); }}
-                    ><Trash2 size={9} /></button>
-                  )}
-                </InlineConfirm>
+                <button
+                  className="w-4 h-4 flex items-center justify-center rounded text-text-tertiary hover:text-danger"
+                  onClick={e => {
+                    e.stopPropagation();
+                    useStore.getState().showConfirm({
+                      title: `Delete "${mod.name}"?`,
+                      description: 'This will delete the module and all its tests. This cannot be undone.',
+                      confirmLabel: 'Delete Module',
+                      variant: 'danger',
+                      onConfirm: onDelete,
+                    });
+                  }}
+                ><Trash2 size={9} /></button>
               )}
             </div>
           </>
@@ -460,7 +503,7 @@ function ModuleNode({
 // ─── Test Node ───────────────────────────────────────────────────────────────
 
 interface TestNodeProps {
-  test: { id: string; name: string; steps?: any[] };
+  test: { id: string; name: string; steps?: any[]; tags?: string[] };
   index: number;
   isActive: boolean;
   isRenaming: boolean;
@@ -482,7 +525,7 @@ function TestNode({
 }: TestNodeProps) {
   return (
     <div
-      className={`group flex items-center gap-1 px-2 py-[4px] cursor-pointer text-[11px] transition-all ${
+      className={`group flex items-center gap-1 px-2 py-1.5 cursor-pointer text-xs transition-all relative ${
         isActive
           ? 'bg-accent/10 text-text-primary font-medium'
           : 'text-text-secondary hover:bg-bg-hover'
@@ -490,6 +533,7 @@ function TestNode({
       onClick={onSelect}
       onDoubleClick={onStartRename}
     >
+      {isActive && <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent rounded-r-full" />}
       {/* Drag handle */}
       <span
         className="w-3.5 h-3.5 flex items-center justify-center cursor-grab opacity-0 group-hover:opacity-60 transition-opacity shrink-0"
@@ -515,16 +559,27 @@ function TestNode({
         <>
           <FileText size={10} className="text-text-tertiary shrink-0" />
           <span className="flex-1 truncate">{test.name}</span>
+          {test.tags && test.tags.length > 0 && (
+            <span
+              className="w-1.5 h-1.5 rounded-full bg-accent shrink-0"
+              title={test.tags.join(', ')}
+            />
+          )}
           <span className="text-[9px] text-text-tertiary tabular-nums">{(test.steps || []).length}s</span>
           {canDelete && (
-            <InlineConfirm onConfirm={onDelete} message="Delete?">
-              {({ requestConfirm }) => (
-                <button
-                  className="w-3.5 h-3.5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-danger"
-                  onClick={e => { e.stopPropagation(); requestConfirm(); }}
-                ><Trash2 size={8} /></button>
-              )}
-            </InlineConfirm>
+            <button
+              className="w-3.5 h-3.5 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-text-tertiary hover:text-danger"
+              onClick={e => {
+                e.stopPropagation();
+                useStore.getState().showConfirm({
+                  title: `Delete "${test.name}"?`,
+                  description: 'This will delete the test and all its steps. This cannot be undone.',
+                  confirmLabel: 'Delete Test',
+                  variant: 'danger',
+                  onConfirm: onDelete,
+                });
+              }}
+            ><Trash2 size={8} /></button>
           )}
         </>
       )}

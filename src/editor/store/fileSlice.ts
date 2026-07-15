@@ -28,7 +28,9 @@ export interface FileSlice {
   addTest: () => void;
   deleteTest: (index: number) => void;
   renameTest: (index: number, name: string) => void;
+  setTestTags: (index: number, tags: string[]) => void;
   updateSteps: (steps: TestStep[]) => void;
+  setModuleEngine: (engine: 'web' | 'mobile', mobileConfig?: TestFile['mobileConfig']) => void;
 }
 
 const defaultFile: TestFile = {
@@ -36,6 +38,25 @@ const defaultFile: TestFile = {
   name: 'Untitled Test',
   tests: [{ id: crypto.randomUUID(), name: 'Test 1', steps: [] }],
 };
+
+// Merge an updated file into modules[activeModuleIndex] so session state stays
+// consistent — every file mutation must go through this or edits are lost when
+// switching modules (module switch overwrites `file` from `modules`).
+function withModuleSync(state: any, file: TestFile, extra: Record<string, unknown> = {}) {
+  if (state.modules?.length > 0 && state.activeModuleIndex != null && state.modules[state.activeModuleIndex]) {
+    const modules = [...state.modules];
+    const mi = state.activeModuleIndex;
+    modules[mi] = {
+      ...modules[mi],
+      tests: file.tests,
+      name: file.name || modules[mi].name,
+      engine: file.engine,
+      mobileConfig: file.mobileConfig,
+    };
+    return { file, dirty: true, modules, ...extra };
+  }
+  return { file, dirty: true, ...extra };
+}
 
 export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set, get) => ({
   file: defaultFile,
@@ -49,36 +70,24 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
     return file.tests[activeTestIndex] || file.tests[0];
   },
 
-  setFile: (file) => set(state => {
+  setFile: (file) => {
     // Ensure tests exist
     if (!file.tests || file.tests.length === 0) {
       file = { ...file, tests: [{ id: crypto.randomUUID(), name: 'Test 1', steps: [] }] };
     }
+
+    const state = get() as any;
     // Clamp activeTestIndex to valid range
     const activeTestIndex = Math.min(state.activeTestIndex, file.tests.length - 1);
 
-    // Sync back to modules array so session state stays consistent
-    const anyState = state as any;
-    if (anyState.modules?.length > 0 && anyState.activeModuleIndex != null) {
-      const modules = [...anyState.modules];
-      const mi = anyState.activeModuleIndex;
-      if (modules[mi]) {
-        modules[mi] = { ...modules[mi], tests: file.tests, name: file.name || modules[mi].name };
-        return { file, activeTestIndex, dirty: true, modules } as any;
-      }
-    }
-
-    return { file, activeTestIndex, dirty: true };
-  }),
+    set(withModuleSync(state, file, { activeTestIndex }) as any);
+  },
   setFileId: (fileId) => set({ fileId }),
   setActiveTestIndex: (activeTestIndex) => set({ activeTestIndex }),
   setSavedFiles: (savedFiles) => set({ savedFiles }),
   setDirty: (dirty) => set({ dirty }),
 
-  updateFileName: (name) => set(state => ({
-    file: { ...state.file, name },
-    dirty: true,
-  })),
+  updateFileName: (name) => set(state => withModuleSync(state, { ...state.file, name }) as any),
 
   loadFile: (stored) => set({
     fileId: stored.id,
@@ -100,11 +109,8 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
   addTest: () => set(state => {
     const tests = state.file.tests || [];
     const newTest: TestCase = { id: crypto.randomUUID(), name: `Test ${tests.length + 1}`, steps: [] };
-    return {
-      file: { ...state.file, tests: [...tests, newTest] },
-      activeTestIndex: tests.length,
-      dirty: true,
-    };
+    const file = { ...state.file, tests: [...tests, newTest] };
+    return withModuleSync(state, file, { activeTestIndex: tests.length }) as any;
   }),
 
   deleteTest: (index) => set(state => {
@@ -117,31 +123,29 @@ export const createFileSlice: StateCreator<FileSlice, [], [], FileSlice> = (set,
     } else if (index === activeTestIndex) {
       activeTestIndex = Math.min(activeTestIndex, tests.length - 1);
     }
-    return { file: { ...state.file, tests }, activeTestIndex, dirty: true };
+    return withModuleSync(state, { ...state.file, tests }, { activeTestIndex }) as any;
   }),
 
   renameTest: (index, name) => set(state => {
     const tests = [...(state.file.tests || [])];
     tests[index] = { ...tests[index], name };
-    return { file: { ...state.file, tests }, dirty: true };
+    return withModuleSync(state, { ...state.file, tests }) as any;
   }),
 
-  updateSteps: (steps) => set(state => {
+  setTestTags: (index, tags) => set(state => {
+    const tests = [...(state.file.tests || [])];
+    tests[index] = { ...tests[index], tags };
+    return withModuleSync(state, { ...state.file, tests }) as any;
+  }),
+
+  updateSteps: (steps) => {
+    const state = get() as any;
     const tests = [...(state.file.tests || [])];
     tests[state.activeTestIndex] = { ...tests[state.activeTestIndex], steps };
-    const file = { ...state.file, tests };
+    set(withModuleSync(state, { ...state.file, tests }) as any);
+  },
 
-    // Sync back to modules
-    const anyState = state as any;
-    if (anyState.modules?.length > 0 && anyState.activeModuleIndex != null) {
-      const modules = [...anyState.modules];
-      const mi = anyState.activeModuleIndex;
-      if (modules[mi]) {
-        modules[mi] = { ...modules[mi], tests };
-        return { file, dirty: true, modules } as any;
-      }
-    }
-
-    return { file, dirty: true };
-  }),
+  setModuleEngine: (engine, mobileConfig) => set(state =>
+    withModuleSync(state, { ...state.file, engine, mobileConfig }) as any
+  ),
 });

@@ -73,8 +73,71 @@ const screenshot: BlockDefinition = {
   },
 };
 
+const reload: BlockDefinition = {
+  type: 'reload',
+  category: 'navigation',
+  label: 'Reload Page',
+  description: 'Reload the current page',
+  color: '#4CAF50',
+  inputs: [],
+  async execute(_params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.reload({ waitUntil: 'load' });
+    return { stepId: '', type: 'reload', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const goBack: BlockDefinition = {
+  type: 'go_back',
+  category: 'navigation',
+  label: 'Go Back',
+  description: 'Navigate back in browser history',
+  color: '#4CAF50',
+  inputs: [],
+  async execute(_params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.goBack();
+    return { stepId: '', type: 'go_back', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const goForward: BlockDefinition = {
+  type: 'go_forward',
+  category: 'navigation',
+  label: 'Go Forward',
+  description: 'Navigate forward in browser history',
+  color: '#4CAF50',
+  inputs: [],
+  async execute(_params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.goForward();
+    return { stepId: '', type: 'go_forward', status: 'passed', duration: Date.now() - start };
+  },
+};
+
+const waitForUrl: BlockDefinition = {
+  type: 'wait_for_url',
+  category: 'navigation',
+  label: 'Wait for URL',
+  description: 'Wait until the page URL matches a pattern',
+  color: '#4CAF50',
+  inputs: [
+    { name: 'url', label: 'URL pattern', type: 'text', required: true, placeholder: 'https://example.com/dashboard' },
+    { name: 'timeout', label: 'Timeout (ms)', type: 'number', default: 10000 },
+  ],
+  async execute(params, ctx) {
+    const page = ctx.page as any;
+    const start = Date.now();
+    await page.waitForURL(String(params.url), { timeout: Number(params.timeout || 10000) });
+    return { stepId: '', type: 'wait_for_url', status: 'passed', duration: Date.now() - start };
+  },
+};
+
 // ─── Register ────────────────────────────────────────────────────────────────
 
 export function registerNavigationBlocks(): void {
-  [navigate, waitForElement, wait, screenshot].forEach(registerBlock);
+  [navigate, waitForElement, wait, screenshot, reload, goBack, goForward, waitForUrl].forEach(registerBlock);
 }
