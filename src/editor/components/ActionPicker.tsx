@@ -90,7 +90,11 @@ export function ActionPicker({ onAddBlock }: Props) {
     }
   }, [selectedIndex, flatList]);
 
-  const close = () => useStore.getState().setActionPickerOpen(false);
+  const close = () => {
+    const s = useStore.getState();
+    s.setActionPickerOpen(false);
+    s.setAddBlockTargetContainerId(null);
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') { close(); return; }

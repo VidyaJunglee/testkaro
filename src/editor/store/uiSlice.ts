@@ -34,6 +34,10 @@ export interface UISlice {
   confirmModal: ConfirmModalState;
   /** True while the JSON editor holds text that fails to parse — blocks Run. */
   jsonInvalid: boolean;
+  /** When set, the next block added via the ActionPicker is appended as a
+   * child of this container step (if/repeat/try_catch/for_each) instead of
+   * at the top level. Cleared after each add. */
+  addBlockTargetContainerId: string | null;
 
   // Actions
   setTab: (tab: EditorTab) => void;
@@ -52,6 +56,7 @@ export interface UISlice {
   showConfirm: (opts: Omit<ConfirmModalState, 'open'>) => void;
   closeConfirm: () => void;
   setJsonInvalid: (invalid: boolean) => void;
+  setAddBlockTargetContainerId: (id: string | null) => void;
 }
 
 export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) => ({
@@ -67,6 +72,7 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) 
   darkMode: localStorage.getItem('testkaro-dark') !== 'false',
   confirmModal: { open: false, title: '' },
   jsonInvalid: false,
+  addBlockTargetContainerId: null,
 
   setTab: (tab) => set({ tab }),
   setBottomTab: (bottomTab) => set({ bottomTab }),
@@ -89,4 +95,5 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set, get) 
   showConfirm: (opts) => set({ confirmModal: { ...opts, open: true } }),
   closeConfirm: () => set({ confirmModal: { open: false, title: '' } }),
   setJsonInvalid: (jsonInvalid) => set({ jsonInvalid }),
+  setAddBlockTargetContainerId: (addBlockTargetContainerId) => set({ addBlockTargetContainerId }),
 });

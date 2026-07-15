@@ -4,7 +4,7 @@ import {
   useSensor, useSensors, DragEndEvent, DragOverlay,
 } from '@dnd-kit/core';
 import {
-  arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
+  SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { Plus, Circle, Search, X } from 'lucide-react';
 import { BLOCKS } from '../blocks';
@@ -14,6 +14,10 @@ import {
   useStore,
   useHighlightedStepId, useBreakpoints, useSelectedStepIds,
 } from '../store';
+import {
+  mapStepTree, removeStepFromTree, insertAfterInTree,
+  reorderInTree, findStepById, cloneStepWithNewIds,
+} from '../utils/stepTree';
 
 export function VisualBuilder() {
   const file = useStore(s => s.file);
@@ -141,56 +145,44 @@ export function VisualBuilder() {
     if (!over || active.id === over.id) return;
     const s = store.getState();
     const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-    const oldIndex = currentSteps.findIndex(st => st.id === active.id);
-    const newIndex = currentSteps.findIndex(st => st.id === over.id);
-    if (oldIndex !== -1 && newIndex !== -1) {
-      s.updateSteps(arrayMove(currentSteps, oldIndex, newIndex));
-    }
+    s.updateSteps(reorderInTree(currentSteps, String(active.id), String(over.id)));
   };
 
-  const addStep = (blockType: string) => {
-    const block = BLOCKS.find(b => b.type === blockType);
-    if (!block) return;
-    const params: Record<string, unknown> = {};
-    block.inputs.forEach(input => {
-      params[input.name] = input.default !== undefined ? input.default : '';
-    });
-    const s = store.getState();
-    const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-    s.updateSteps([...currentSteps, { id: crypto.randomUUID(), type: blockType, params }]);
-  };
-
+  // These search the whole step tree (not just the top level) so edits made
+  // to a step nested inside an if/repeat/try_catch/for_each container land
+  // correctly instead of silently no-op'ing.
   const updateStep = (id: string, params: Record<string, unknown>) => {
     const s = store.getState();
     const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-    s.updateSteps(currentSteps.map(st => st.id === id ? { ...st, params } : st));
+    s.updateSteps(mapStepTree(currentSteps, id, st => ({ ...st, params })));
   };
 
   const updateStepMeta = (id: string, updates: Partial<TestStep>) => {
     const s = store.getState();
     const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-    s.updateSteps(currentSteps.map(st => st.id === id ? { ...st, ...updates } : st));
+    s.updateSteps(mapStepTree(currentSteps, id, st => ({ ...st, ...updates })));
   };
 
   const removeStep = (id: string) => {
     const s = store.getState();
     const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-    s.updateSteps(currentSteps.filter(st => st.id !== id));
+    s.updateSteps(removeStepFromTree(currentSteps, id));
   };
 
   const duplicateStep = (id: string) => {
     const s = store.getState();
     const currentSteps = (s.file.tests[s.activeTestIndex] || s.file.tests[0]).steps;
-    const step = currentSteps.find(st => st.id === id);
+    const step = findStepById(currentSteps, id);
     if (!step) return;
-    const idx = currentSteps.indexOf(step);
-    const copy = { ...step, id: crypto.randomUUID(), params: { ...step.params } };
-    const newSteps = [...currentSteps];
-    newSteps.splice(idx + 1, 0, copy);
-    s.updateSteps(newSteps);
+    s.updateSteps(insertAfterInTree(currentSteps, id, cloneStepWithNewIds(step)));
   };
 
-  const draggedStep = draggedId ? steps.find(s => s.id === draggedId) : null;
+  const addChildStep = (parentId: string) => {
+    store.getState().setAddBlockTargetContainerId(parentId);
+    store.getState().setActionPickerOpen(true);
+  };
+
+  const draggedStep = draggedId ? findStepById(steps, draggedId) : null;
 
   return (
     <div className="flex flex-1 h-full overflow-hidden">
@@ -214,7 +206,7 @@ export function VisualBuilder() {
               <span className="text-xs text-text-tertiary">or</span>
               <button
                 className="flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent text-on-accent text-sm font-medium hover:bg-accent-hover transition-colors"
-                onClick={() => store.getState().setActionPickerOpen(true)}
+                onClick={() => { store.getState().setAddBlockTargetContainerId(null); store.getState().setActionPickerOpen(true); }}
               >
                 <Plus size={15} />
                 Add Step
@@ -276,65 +268,56 @@ export function VisualBuilder() {
               onDragEnd={handleDragEnd}
               onDragCancel={() => store.getState().setDraggedId(null)}
             >
-              <SortableContext items={filteredSteps.map(s => s.id)} strategy={verticalListSortingStrategy}>
-                <div className="flex flex-col gap-2.5">
-                  {/* Multi-select toolbar */}
-                  {selectedStepIds.size > 1 && (
-                    <div className="flex items-center gap-3 px-4 py-2 mb-1 rounded-lg bg-accent/5 border border-accent/20 text-sm text-accent">
-                      <span className="font-medium">{selectedStepIds.size} steps selected</span>
-                      <span className="text-text-tertiary">|</span>
-                      <button
-                        className="hover:underline"
-                        onClick={() => {
-                          const s = store.getState();
-                          const count = s.selectedStepIds.size;
-                          s.showConfirm({
-                            title: `Delete ${count} steps?`,
-                            description: 'This cannot be undone from here (use Undo to recover).',
-                            confirmLabel: 'Delete Steps',
-                            variant: 'danger',
-                            onConfirm: () => {
-                              const st = store.getState();
-                              const currentSteps = (st.file.tests?.[st.activeTestIndex] || st.file.tests?.[0])?.steps || [];
-                              st.updateSteps(currentSteps.filter(step => !st.selectedStepIds.has(step.id)));
-                              st.clearSelection();
-                            },
-                          });
-                        }}
-                      >
-                        Delete
-                      </button>
-                      <button
-                        className="hover:underline"
-                        onClick={() => store.getState().clearSelection()}
-                      >
-                        Deselect
-                      </button>
-                    </div>
-                  )}
+              <div className="flex flex-col gap-2.5">
+                {/* Multi-select toolbar */}
+                {selectedStepIds.size > 1 && (
+                  <div className="flex items-center gap-3 px-4 py-2 mb-1 rounded-lg bg-accent/5 border border-accent/20 text-sm text-accent">
+                    <span className="font-medium">{selectedStepIds.size} steps selected</span>
+                    <span className="text-text-tertiary">|</span>
+                    <button
+                      className="hover:underline"
+                      onClick={() => {
+                        const s = store.getState();
+                        const count = s.selectedStepIds.size;
+                        s.showConfirm({
+                          title: `Delete ${count} steps?`,
+                          description: 'This cannot be undone from here (use Undo to recover).',
+                          confirmLabel: 'Delete Steps',
+                          variant: 'danger',
+                          onConfirm: () => {
+                            const st = store.getState();
+                            const currentSteps = (st.file.tests?.[st.activeTestIndex] || st.file.tests?.[0])?.steps || [];
+                            st.updateSteps(currentSteps.filter(step => !st.selectedStepIds.has(step.id)));
+                            st.clearSelection();
+                          },
+                        });
+                      }}
+                    >
+                      Delete
+                    </button>
+                    <button
+                      className="hover:underline"
+                      onClick={() => store.getState().clearSelection()}
+                    >
+                      Deselect
+                    </button>
+                  </div>
+                )}
 
-                  {filteredSteps.map((step, index) => (
-                    <StepCard
-                      key={step.id}
-                      step={step}
-                      index={index}
-                      block={BLOCKS.find(b => b.type === step.type)}
-                      onUpdate={params => updateStep(step.id, params)}
-                      onUpdateStep={updates => updateStepMeta(step.id, updates)}
-                      onRemove={() => removeStep(step.id)}
-                      onDuplicate={() => duplicateStep(step.id)}
-                      highlighted={step.id === highlightedStepId}
-                      selected={selectedStepIds.has(step.id)}
-                      onSelect={(e) => handleSelect(step.id, e)}
-                      hasBreakpoint={breakpoints.has(step.id)}
-                      onToggleBreakpoint={() => store.getState().toggleBreakpoint(step.id)}
-                      showValidation={true}
-                      lastStatus={lastResultByStep[step.id]?.status as 'passed' | 'failed' | 'skipped' | undefined}
-                      lastError={lastResultByStep[step.id]?.error}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
+                <StepGroup
+                  steps={filteredSteps}
+                  highlightedStepId={highlightedStepId}
+                  selectedStepIds={selectedStepIds}
+                  breakpoints={breakpoints}
+                  lastResultByStep={lastResultByStep}
+                  onSelect={handleSelect}
+                  onUpdate={updateStep}
+                  onUpdateStep={updateStepMeta}
+                  onRemove={removeStep}
+                  onDuplicate={duplicateStep}
+                  onAddChild={addChildStep}
+                />
+              </div>
               <DragOverlay>
                 {draggedStep ? (
                   <div className="bg-bg-card border border-border-active rounded-lg px-4 py-2.5 shadow-lg text-sm text-text-primary opacity-90">
@@ -347,7 +330,7 @@ export function VisualBuilder() {
             {/* Add Step button - anchored below steps */}
             <button
               className="w-full flex items-center justify-center gap-2 mt-5 py-3.5 rounded-lg border-2 border-dashed border-border hover:border-accent hover:bg-accent/5 text-text-tertiary hover:text-accent transition-all text-sm font-medium"
-              onClick={() => store.getState().setActionPickerOpen(true)}
+              onClick={() => { store.getState().setAddBlockTargetContainerId(null); store.getState().setActionPickerOpen(true); }}
             >
               <Plus size={16} />
               Add Step
@@ -356,5 +339,91 @@ export function VisualBuilder() {
         )}
       </div>
     </div>
+  );
+}
+
+// ─── Recursive step list ─────────────────────────────────────────────────────
+// Renders one level of the step tree. Container blocks (if/repeat/try_catch/
+// for_each) render their `children` as a nested StepGroup directly below the
+// card, each level with its own SortableContext so drag-and-drop works within
+// a container as well as at the top level (reorderInTree figures out which
+// array a drag actually belongs to).
+
+interface StepGroupProps {
+  steps: TestStep[];
+  highlightedStepId: string | null;
+  selectedStepIds: Set<string>;
+  breakpoints: Set<string>;
+  lastResultByStep: Record<string, { status: string; error?: string }>;
+  onSelect: (id: string, e: React.MouseEvent) => void;
+  onUpdate: (id: string, params: Record<string, unknown>) => void;
+  onUpdateStep: (id: string, updates: Partial<TestStep>) => void;
+  onRemove: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onAddChild: (parentId: string) => void;
+}
+
+function StepGroup({
+  steps, highlightedStepId, selectedStepIds, breakpoints, lastResultByStep,
+  onSelect, onUpdate, onUpdateStep, onRemove, onDuplicate, onAddChild,
+}: StepGroupProps) {
+  return (
+    <SortableContext items={steps.map(s => s.id)} strategy={verticalListSortingStrategy}>
+      <div className="flex flex-col gap-2.5">
+        {steps.map((step, index) => {
+          const block = BLOCKS.find(b => b.type === step.type);
+          return (
+            <div key={step.id}>
+              <StepCard
+                step={step}
+                index={index}
+                block={block}
+                onUpdate={params => onUpdate(step.id, params)}
+                onUpdateStep={updates => onUpdateStep(step.id, updates)}
+                onRemove={() => onRemove(step.id)}
+                onDuplicate={() => onDuplicate(step.id)}
+                highlighted={step.id === highlightedStepId}
+                selected={selectedStepIds.has(step.id)}
+                onSelect={(e) => onSelect(step.id, e)}
+                hasBreakpoint={breakpoints.has(step.id)}
+                onToggleBreakpoint={() => useStore.getState().toggleBreakpoint(step.id)}
+                showValidation={true}
+                lastStatus={lastResultByStep[step.id]?.status as 'passed' | 'failed' | 'skipped' | undefined}
+                lastError={lastResultByStep[step.id]?.error}
+              />
+
+              {block?.hasChildren && (
+                <div className="ml-8 mt-2 pl-4 border-l-2 border-border-subtle flex flex-col gap-2.5">
+                  {step.children && step.children.length > 0 ? (
+                    <StepGroup
+                      steps={step.children}
+                      highlightedStepId={highlightedStepId}
+                      selectedStepIds={selectedStepIds}
+                      breakpoints={breakpoints}
+                      lastResultByStep={lastResultByStep}
+                      onSelect={onSelect}
+                      onUpdate={onUpdate}
+                      onUpdateStep={onUpdateStep}
+                      onRemove={onRemove}
+                      onDuplicate={onDuplicate}
+                      onAddChild={onAddChild}
+                    />
+                  ) : (
+                    <p className="text-xs text-text-tertiary italic py-1">No steps inside yet</p>
+                  )}
+                  <button
+                    className="self-start flex items-center gap-1.5 text-xs text-text-tertiary hover:text-accent transition-colors px-2 py-1 rounded hover:bg-accent/5"
+                    onClick={() => onAddChild(step.id)}
+                  >
+                    <Plus size={12} />
+                    Add step here
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </SortableContext>
   );
 }

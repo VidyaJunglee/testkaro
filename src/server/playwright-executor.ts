@@ -219,6 +219,21 @@ export class PlaywrightExecutor {
     return String(val);
   }
 
+  // page.click(selector)/page.fill(selector) target the FIRST DOM match with
+  // no regard for visibility — a duplicate hidden element sharing the same
+  // id/attribute (common with responsive desktop/mobile form pairs, or an
+  // SSO page mid-transition) makes the step hang until timeout even though a
+  // visible match exists. Locator-based actions let us prefer the visible one.
+  // Selectors using an explicit non-CSS engine (role=, text=, xpath=, an
+  // intentionally-hidden upload target, etc.) are left untouched.
+  private interactiveLocator(page: Page, selector: string) {
+    const trimmed = selector.trim();
+    const usesOtherEngine =
+      /^(text|role|xpath|id|data-testid|css|label|placeholder|alt|title)\s*=/.test(trimmed) ||
+      trimmed.startsWith('//') || trimmed.startsWith('..') || trimmed.startsWith('~');
+    return page.locator(usesOtherEngine ? trimmed : `${trimmed}:visible`);
+  }
+
   // Top-level entry: resets run state, executes all steps, then runs the
   // done/close epilogue exactly once. Container blocks recurse via
   // executeStepsInner, which must never touch run-level state.
@@ -402,50 +417,50 @@ export class PlaywrightExecutor {
 
       // === INTERACTION ===
       case 'click': {
-        await page.click(this.requireString(params, 'selector', type), { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).click({ timeout });
         break;
       }
       case 'double-click':
       case 'double_click': {
-        await page.dblclick(this.requireString(params, 'selector', type), { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).dblclick({ timeout });
         break;
       }
       case 'right-click':
       case 'right_click': {
-        await page.click(this.requireString(params, 'selector', type), { timeout, button: 'right' });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).click({ timeout, button: 'right' });
         break;
       }
       case 'fill': {
-        await page.fill(this.requireString(params, 'selector', type), String(params.value || ''), { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).fill(String(params.value || ''), { timeout });
         break;
       }
       case 'type': {
-        await page.locator(this.requireString(params, 'selector', type)).pressSequentially(String(params.text || params.value || ''), { delay: 50 });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).pressSequentially(String(params.text || params.value || ''), { delay: 50, timeout });
         break;
       }
       case 'clear': {
-        await page.fill(this.requireString(params, 'selector', type), '', { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).fill('', { timeout });
         break;
       }
       case 'select': {
-        await page.selectOption(this.requireString(params, 'selector', type), String(params.value || ''), { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).selectOption(String(params.value || ''), { timeout });
         break;
       }
       case 'check': {
         const checkSel = this.requireString(params, 'selector', type);
         if (params.checked === false) {
-          await page.uncheck(checkSel, { timeout });
+          await this.interactiveLocator(page, checkSel).uncheck({ timeout });
         } else {
-          await page.check(checkSel, { timeout });
+          await this.interactiveLocator(page, checkSel).check({ timeout });
         }
         break;
       }
       case 'uncheck': {
-        await page.uncheck(this.requireString(params, 'selector', type), { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).uncheck({ timeout });
         break;
       }
       case 'hover': {
-        await page.hover(this.requireString(params, 'selector', type), { timeout });
+        await this.interactiveLocator(page, this.requireString(params, 'selector', type)).hover({ timeout });
         break;
       }
       case 'scroll-to':

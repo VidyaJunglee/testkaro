@@ -24,6 +24,7 @@ import {
   useTab, useShowRunner, useShowRecordBar, useCommandPaletteOpen, useActionPickerOpen, useViewLevel,
 } from './store';
 import { getGlobalEnvironments, saveAllGlobalEnvironments } from './storage/global-env-store';
+import { appendChildInTree } from './utils/stepTree';
 
 // ─── Editor View ─────────────────────────────────────────────────────────────
 
@@ -126,7 +127,15 @@ function EditorView({ route }: { route: AppRoute }) {
     });
     const state = store.getState();
     const currentSteps = state.file.tests[state.activeTestIndex]?.steps || [];
-    state.updateSteps([...currentSteps, { id: crypto.randomUUID(), type: blockType, params }]);
+    const newStep: TestStep = { id: crypto.randomUUID(), type: blockType, params, ...(block.hasChildren ? { children: [] } : {}) };
+
+    const targetContainerId = state.addBlockTargetContainerId;
+    if (targetContainerId) {
+      state.updateSteps(appendChildInTree(currentSteps, targetContainerId, newStep));
+      state.setAddBlockTargetContainerId(null);
+    } else {
+      state.updateSteps([...currentSteps, newStep]);
+    }
   }, []);
 
   // Keyboard shortcuts
@@ -134,7 +143,7 @@ function EditorView({ route }: { route: AppRoute }) {
     const handler = (e: KeyboardEvent) => {
       const s = store.getState();
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); s.setCommandPaletteOpen(true); }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'p') { e.preventDefault(); if (s.viewLevel === 'test') s.setActionPickerOpen(true); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') { e.preventDefault(); if (s.viewLevel === 'test') { s.setAddBlockTargetContainerId(null); s.setActionPickerOpen(true); } }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') { e.preventDefault(); s.newFile(); }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); s.setShowRunner(true); }
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'R') { e.preventDefault(); s.setShowRecordBar(true); }
